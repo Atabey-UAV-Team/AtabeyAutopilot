@@ -6,11 +6,7 @@ addpath('simulinkModelleri')
 simTime = 60;
 
 % SABİTLER
-x0 = [0;
-    0;
-    0;
-    0;
-    0;
+x0 = [15;
     0;
     0;
     0;
@@ -20,7 +16,7 @@ x0 = [0;
     0;
     0;];
 
-u = [0;
+u = [5;
     0;
     0;
     0;];

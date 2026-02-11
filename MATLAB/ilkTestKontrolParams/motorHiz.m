@@ -2,11 +2,11 @@
 
 clc, clear, close all
 
-% J = 0.01;
-% b = 0.1;
-% K = 0.01;
-% R = 1;
-% L = 0.5;
+J = 5e-6;
+b = 4.34e-6;
+K = 0.00955;
+R = 0.090;
+% L = ?;
 
 s = tf('s');
 P_motor = K/((J*s+b)*(L*s+R)+K^2); % TF of RPM/Voltage
