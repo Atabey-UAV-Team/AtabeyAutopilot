@@ -35,7 +35,7 @@ u1 = U(1); u2 = U(2); u3 = U(3); u4 = U(4);
 %---------------DEĞİŞKEN DEĞERLER------------------------
 Va = sqrt(x1^2 + x2^2 + x3^2);  % Hız
 alpha = atan2(x3,x1);
-beta = asin(x2/Va);
+beta = asin(max(min(x2/Va,1),-1));
 Q = 0.5*rho*Va^2;               % Dinamik basınç
 
 wbe_b = [x4;x5;x6];

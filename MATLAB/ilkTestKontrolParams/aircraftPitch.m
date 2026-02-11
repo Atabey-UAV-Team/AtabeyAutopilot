@@ -1,3 +1,5 @@
+%% Deneme
+
 % Compute dimensional TF from aerodynamic non-dimensional derivatives and FEA Iyy
 % Uses: rho, V, S, c, m, Iyy, C_L_alpha, C_m_alpha, C_m_q, C_m_delta
 
