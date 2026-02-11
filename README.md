@@ -1,13 +1,13 @@
 # ATABEY UAV Fixed-Wing Autopilot
 
-Bu depo, **Atabey İHA** projesi kapsamında geliştirilen, **STM32F411CEU6 (Black Pill) tabanlı sabit kanat (fixed-wing) otonom uçuş kontrol yazılımını** içermektedir. Sistem; sensör okuma, durum kestirimi, kontrol algoritmaları, görev yürütme ve yer istasyonu haberleşmesini **modüler ve genişletilebilir** bir mimariyle ele alır.
+Bu repo, **Atabey İHA** projesi kapsamında geliştirilen, **Arduino tabanlı sabit kanat (fixed-wing) otonom uçuş kontrol yazılımını** içermektedir. Sistem; sensör okuma, durum kestirimi, kontrol algoritmaları, görev yürütme ve yer istasyonu haberleşmesini **modüler ve genişletilebilir** bir mimariyle ele alır.
 
 ---
 
 ## 🎯 Proje Hedefleri
 
 - Sabit kanat İHA için **tam otonom uçuş yeteneği**
-- STM32 üzerinde **bare-metal / HAL tabanlı** gerçek zamanlı kontrol
+- Arduino üzerinde **gerçek zamanlı kontrol**
 - **Modüler mimari** (sürücüler, kontrol, haberleşme, görev mantığı)
 - MATLAB/Simulink ile **sistem modelleme ve doğrulama**
 - Yer istasyonu (GCS) ile **telemetri ve görev entegrasyonu**
@@ -27,7 +27,7 @@ Autopilot yazılımı aşağıdaki ana katmanlardan oluşur:
 - **Control**  
   PID tabanlı kontrol algoritmaları (Roll, Pitch, Yaw, hız vb.)
 
-- **Comms**  
+- **Comm**  
   Yer istasyonu / telemetri haberleşmesi (MAVLink benzeri yapı)
 
 - **App (Autopilot)**  
@@ -40,18 +40,17 @@ Autopilot yazılımı aşağıdaki ana katmanlardan oluşur:
 fixedwing-autopilot/
 │
 ├─ firmware/
-│ └─ stm32/
-│ ├─ App/
-│ │ ├─ app/ # Autopilot ana kütüphanesi
-│ │ ├─ core/ # Scheduler ve çekirdek sistemi
-│ │ ├─ control/ # PID ve kontrol algoritmaları
-│ │ ├─ comms/ # Haberleşme katmanı
-│ │ ├─ drivers/ # Sensör ve donanım sürücüleri
-│ │ └─ config/ # Kart ve sistem konfigürasyonları
-│ │
-│ ├─ Drivers/ # STM32 HAL sürücüleri
-│ ├─ linker scripts/ # Flash / RAM linker dosyaları
-│ └─ startup & system # Startup ve sistem dosyaları
+│ └─ arduino/
+│ │ └─ Autopilot/
+│ │ │ ├─ core/ # Scheduler ve çekirdek sistemi
+│ │ │ ├─ control/ # PID ve kontrol algoritmaları
+│ │ │ ├─ comm/ # Haberleşme katmanı
+│ │ │ ├─ drivers/ # Sensör ve donanım sürücüleri
+│ │ │ └─ Autopilot.ino # Otopilot ana kütüphanesi
+│
+├─ diagrams/
+│ ├─ classDiagrams/ # Class method ve parametre diyagramları
+│ ├─ sequenceDiagrams/ # Örnek senaryolar
 │
 ├─ MATLAB/
 │ ├─ scripts/ # Simülasyon ve analiz scriptleri
@@ -79,7 +78,7 @@ fixedwing-autopilot/
 
 ## 📊 MATLAB & Simulink
 
-Bu depo, gömülü yazılım ile **aynı sistemin matematiksel modelini** de içerir:
+Bu repo, gömülü yazılım ile **aynı sistemin matematiksel modelini** de içerir:
 
 - Uçak dinamikleri (longitudinal / lateral)
 - PID kontrolcü tasarımı
@@ -94,8 +93,8 @@ Bu sayede:
 
 ## 🛠 Donanım Hedefi
 
-- **MCU:** STM32F411 / STM32F401 (BlackPill uyumlu)
-- **Sensörler:** IMU (MPU6050/9250), Barometre, GPS (u-blox)
+- **MCU:** Arduino Mega Mini
+- **Sensörler:** IMU (MPU6050/9250), Barometre, GPS
 - **Haberleşme:** UART / LoRa / RC
 - **Aktüatörler:** Servo yüzeyler + ESC
 
@@ -103,7 +102,7 @@ Bu sayede:
 
 ## 🚀 Geliştirme Notları
 
-- Kod yapısı **STM32** mimarisine yöneliktir.
+- Kod yapısı **Arduino** mimarisine yöneliktir.
 - Her alt sistem (kütüphane) bağımsız geliştirilebilir.
 - Scheduler tabanlı yapı dolayısıyla sonradan RTOS’a geçişe uygundur.
 - PID ve kontrol katmanı kolayca genişletilebilir.
@@ -112,23 +111,27 @@ Bu sayede:
 
 ## 📌 Yol Haritası (Özet)
 
-- [ ] Sensör Driverleri
-- [ ] Durum kestirimi (EKF)
-- [ ] Uçuş modları (AUTO, MANUAL)
-- [ ] MAVLink uyumluluğu
-- [ ] Donanım-in-the-loop (HIL) testleri
-- [ ] Fail-safe ve güvenlik katmanları
+- [ ] Sensör Driverleri / %60
+- [ ] Durum kestirimi (EKF) / Planlandı
+- [ ] Uçuş modları (AUTO, MANUAL) / Planladı
+- [ ] MAVLink uyumluluğu / Planlandı
+- [ ] Donanım-in-the-loop (HIL) testleri / Başlanmadı
+- [ ] Fail-safe ve güvenlik katmanları / Başlanmadı
 
 ---
 
-## 👥 Katkı
+## 👥 Ekip ve Görev Dağılımı
 
-Bu proje **Atabey İHA Elektronik Birimi** tarafından geliştirilmektedir.  
-Katkı sağlamak için:
+Bu proje **Atabey İHA Elektronik Birimi** tarafından geliştirilmektedir. Otopilot yazılımı, modüler bir mimari ile ekip üyeleri arasında paylaştırılmıştır.
 
-1. Fork oluştur
-2. Feature branch aç
-3. Temiz ve dokümante edilmiş PR gönder
+- **Furkan** — Ana yazılım mimarisi, core kütüphane, sınıf diyagramları ve modüller arası entegrasyon
+- **Eray** — Uçuş kontrol algoritmaları (PID, stabilizasyon, kontrol döngüleri)
+- **Şiar** — GPS sürücüsü geliştirme, navigasyon ve kaçış (failsafe / recovery) algoritmaları
+- **Mert** — Sensör verisi filtreleme (ör. EKF), durum kestirimi (state estimation)
+- **Hatice** — IMU sürücüsü geliştirme ve PCB tasarımı
+- **Muhammet** — Araç – GCS haberleşmesi, telemetri protokolleri ve veri linki entegrasyonu
+
+Bu yapı sayesinde yazılım; **sürücüler, kontrol, navigasyon ve haberleşme** katmanları arasında net bir şekilde ayrılmıştır.
+
 
 ---
-
