@@ -5,8 +5,8 @@ addpath('sistemDinamikleri')
 addpath('simulinkModelleri')
 simTime = 60;
 
-% SABİTLER
-x0 = [15;
+% TRIM
+x0 = [0.1;
     0;
     0;
     0;
@@ -16,10 +16,10 @@ x0 = [15;
     0;
     0;];
 
-u = [5;
+u = [25*pi/180;
     0;
     0;
-    0;];
+    1;];
 
 % KONTROL SINIRLARI
 u1max = 25*pi/180;       % Aileron min/max derecesi
@@ -39,7 +39,7 @@ clc
 endResults = sim("ATABEY_sistem_modeli.slx")
 
 %% PLOT
-clc
+clc, close all
 X_ts = endResults.SimulatedOutputs;
 U_ts = endResults.SimulatedInputs;
 time = X_ts.Time;
@@ -49,18 +49,6 @@ X_data = permute(X_ts.Data, [3 1 2]);
 X_data = squeeze(X_data);  
 U_data = reshape(U_ts.Data, U_ts.Length, []);
 U_data = U_data(:,1:4);
-
-figure('Name','Sistem Durumları','NumberTitle','off')
-numStates = size(X_data,2);
-
-for i = 1:numStates
-    subplot(numStates,1,i)
-    plot(time, X_data(:,i), 'LineWidth', 1.5)
-    grid on
-    xlabel('Simülasyon Zamanı [s]')
-    ylabel(['x_' num2str(i)])
-    title(['Durum: x_' num2str(i)])
-end
 
 figure('Name','Kontrol Girdileri','NumberTitle','off')
 numInputs = size(U_data,2);
@@ -76,4 +64,16 @@ for i = 1:numInputs
     ylabel(['u_' num2str(i)])
     title(['Kontrol Girdisi: u_' num2str(i)])
     legend('Girdi','Min Limit','Max Limit')
+end
+
+figure('Name','Sistem Durumları','NumberTitle','off')
+numStates = size(X_data,2);
+
+for i = 1:numStates
+    subplot(numStates,1,i)
+    plot(time, X_data(:,i), 'LineWidth', 1.5)
+    grid on
+    xlabel('Simülasyon Zamanı [s]')
+    ylabel(['x_' num2str(i)])
+    title(['Durum: x_' num2str(i)])
 end

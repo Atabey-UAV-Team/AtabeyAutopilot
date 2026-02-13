@@ -1,23 +1,24 @@
 /*
-* Bu şeyi en son ne zaman güncelledim hiçbir fikrim yok
-* Ona göre kullanın
+* Integral wind-up
+* Yön kontrol
 */
 
 const uint8_t C1 = 2, C2 = 3, M1 = 4, M2 = 5;
 double gearRatio = 840.0;
+volatile uint8_t measurement = 0;
+volatile uint8_t measurementOld = 0;
 
 volatile long encoderCount = 0;
 
-double Kp = 2.0;
-double Ki = 0.5;
-double Kd = 0.1;
+double Kp = 0.0;
+double Ki = 0.0;
+double Kd = 0.0;
 
 double reference = 300.0;   // RPM
 double integral = 0;
 double lastError = 0;
 
 int8_t encoderArray[16] = {0,1,-1,0,-1,0,0,1,1,0,0,-1,0,-1,1,0};
-bool encoderArrayBool[16] = {0,1,0,0,0,0,0,1,1,0,0,0,0,0,1,0,};
 
 void setup() {
   Serial.begin(9600);
@@ -32,7 +33,7 @@ void setup() {
 
   delay(3000);  // Time to let servo start
 
-  uint8_t measurementOld = 2*digitalRead(C1) + digitalRead(C2);
+  measurementOld = 2*digitalRead(C1) + digitalRead(C2);
 }
 
 void isrEncoder() {
