@@ -6,6 +6,7 @@ namespace atabey {
         Autopilot::Autopilot()
             : lastMs(0), dt(0.0f),
             roll(0), pitch(0), yaw(0),
+            aileron(0), elevator(0), rudder(0), throttle(0),
             desiredRoll(0), desiredPitch(0), throttle(0),
             controller(nullptr), estimator(nullptr), commLink(nullptr),
             imu(nullptr), gps(nullptr), actuators(nullptr),
@@ -20,6 +21,12 @@ namespace atabey {
         void Autopilot::attachController(IController* ctrl){ controller = ctrl; }
         void Autopilot::attachActuators(IActuator* act) { actuators = act; }
         void Autopilot::attachComm(ICommLink* comm) { commLink = comm; }
+
+        void Autopilot::attachScheduler(Scheduler* s) { scheduler = s; }
+        void Autopilot::attachFlightModeManager(FlightModeManager* fmm) { flightModeMgr = fmm; }
+        void Autopilot::attachFailsafeManager(FailsafeManager* fm) { failsafeMgr = fm; }
+        void Autopilot::attachHealthMonitor(HealthMonitor* hm) { healthMonitor = hm; }
+        void Autopilot::attachParameterStore(ParameterStore* ps) { paramStore = ps; }
 
         // Lifecycle
         bool Autopilot::begin() {
@@ -95,7 +102,7 @@ namespace atabey {
 
             uint8_t buf[12]; // TODO: Telemetri Paketinin byte büyüklüğüne göre düzenlenecek
             
-            commLink->send(buf, sizeof(buf));
+            commLink->send(buf, sizeof(buf)); // TODO
         }
 
         void Autopilot::checkFailsafe() {
@@ -115,6 +122,10 @@ namespace atabey {
             desiredYaw      = yaw;
             desiredThrottle = throttle;
         }
+
+        float Autopilot::getRoll() const { return roll; }
+        float Autopilot::getPitch() const { return pitch; }
+        float Autopilot::getYaw() const { return yaw; }
 
     }
 }

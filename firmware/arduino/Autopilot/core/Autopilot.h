@@ -117,9 +117,9 @@ namespace atabey {
             void setTargets(float roll, float pitch, float yaw, float throttle);
 
             // Debug / getter fonksiyonları
-            float getRoll() const
-            float getPitch() const
-            float getYaw() const
+            float getRoll() const;
+            float getPitch() const;
+            float getYaw() const;
         };
 
     }
