@@ -13,6 +13,7 @@
 #include "HealthMonitor.h"
 #include "ParameterStore.h"
 
+
 namespace atabey {
     namespace core {
 
@@ -28,20 +29,6 @@ namespace atabey {
         class FailsafeManager;
         class HealthMonitor;
         class ParameterStore;
-
-        enum class FlightMode {
-            MANUAL,
-            STABILIZED,
-            AUTO,
-            RTL
-        };
-
-        enum class FailsafeReason {
-            RC_LOST,
-            GPS_LOST,
-            LOW_BATTERY,
-            SENSOR_FAILURE
-        };
 
         class Autopilot {
         private:

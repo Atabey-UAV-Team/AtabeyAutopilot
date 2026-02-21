@@ -111,6 +111,7 @@ Bu sayede:
 
 ## 📌 Yol Haritası (Özet)
 
+- [x] Mimari Planlaması
 - [ ] Sensör Driverleri / %60
 - [ ] Durum kestirimi (EKF) / Planlandı
 - [ ] Uçuş modları (AUTO, MANUAL) / Planladı
@@ -124,12 +125,12 @@ Bu sayede:
 
 Bu proje **Atabey İHA Elektronik Birimi** tarafından geliştirilmektedir. Otopilot yazılımı, modüler bir mimari ile ekip üyeleri arasında paylaştırılmıştır.
 
-- **Furkan** — Ana yazılım mimarisi, core kütüphane, sınıf diyagramları ve modüller arası entegrasyon
+- **Furkan** — Ana yazılım mimarisi, sürücüler, sınıf diyagramları ve modüller arası entegrasyon
 - **Eray** — Uçuş kontrol algoritmaları (PID, stabilizasyon, kontrol döngüleri)
 - **Şiar** — GPS sürücüsü geliştirme, navigasyon ve kaçış (failsafe / recovery) algoritmaları
 - **Mert** — Sensör verisi filtreleme (ör. EKF), durum kestirimi (state estimation)
 - **Hatice** — IMU sürücüsü geliştirme ve PCB tasarımı
-- **Muhammet** — Araç – GCS haberleşmesi, telemetri protokolleri ve veri linki entegrasyonu
+- **Jad** — Uçuş kontrol algoritmaları (PID, stabilizasyon, kontrol döngüleri)
 
 Bu yapı sayesinde yazılım; **sürücüler, kontrol, navigasyon ve haberleşme** katmanları arasında net bir şekilde ayrılmıştır.
 

@@ -1,9 +1,11 @@
-void setup() {
-  // put your setup code here, to run once:
+#include "core/Autopilot.h"
 
+atabey::core::Autopilot autopilot;
+
+void setup() {
+    autopilot.begin();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-
+    autopilot.update();
 }
