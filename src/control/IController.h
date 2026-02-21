@@ -9,7 +9,7 @@ namespace atabey::control {
         virtual bool init() = 0;
         virtual void update(float dt) = 0;
 
-        virtual void setTarget(float roll, float pitch, float yaw, float throttle) = 0;
+        virtual void setTarget(float roll, float pitch, float yaw) = 0;
 
         virtual float getAileron() const = 0;
         virtual float getElevator() const = 0;

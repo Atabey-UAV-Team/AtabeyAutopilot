@@ -81,7 +81,7 @@ namespace atabey {
         void Autopilot::estimateState() {
             if (!estimator) return;
 
-            estimator->update();
+            estimator->update(dt);
 
             roll = estimator->getRoll();
             pitch = estimator->getPitch();
