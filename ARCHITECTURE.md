@@ -7,9 +7,10 @@ Yeni sınıf veya modül eklenirken bu liste referans alınmalıdır.
 
 ---
 
-## 📜 Namespace Listesi
+## 📜 Namespace Organizasyonu
 
-Ana modül:
+Ana kök namespace:
+
 ```text
 atabey
 ```
@@ -21,17 +22,22 @@ atabey::core
 atabey::drivers
 atabey::control
 atabey::comm
-atabey::estimation 
+atabey::estimation
 atabey::utils        (opsiyonel)
 ```
+
+> Not: Namespace yapısı, `src/` klasör yapısı ile birebir eşleşmelidir.
 
 ---
 
 # 📦 atabey::core
 
-**Sistem orkestrasyonu & lifecycle**
+**Sistem orkestrasyonu & yaşam döngüsü (lifecycle)**
 
-**Sınıflar:**
+Bu katman, tüm sistemi bir arada tutan çekirdektir.
+Zamanlama, uçuş modu yönetimi, failsafe, parametreler ve alt modüllerin koordinasyonu buradan yürütülür.
+
+### Ana Sınıflar
 
 * `Autopilot`
 * `Scheduler`
@@ -41,21 +47,26 @@ atabey::utils        (opsiyonel)
 * `FlightModeManager`
 * `FailsafeManager`
 
-**Interface’ler (bağımlılık için):**
+### Core Tarafından Kullanılan Arayüzler (Dependency Inversion)
 
-* `IController`
-* `ISensor`
-* `ICommLink`
-* `IActuator`
-* `IEstimator`
+Core katmanı, alt modüllere **doğrudan somut sınıflar üzerinden değil, arayüzler üzerinden** bağlanır:
 
-> Not: Core katmanı mümkün olduğunca **interface’ler üzerinden** diğer modüllere bağlanmalıdır.
+* `drivers::ISensor`
+* `drivers::IActuator`
+* `estimation::IEstimator`
+* `control::IController`
+* `comm::ICommLink`
+
+> Not: Core katmanı donanımı ve protokol detaylarını **bilmemelidir**.
+> Tüm bağımlılıklar interface üzerinden enjekte edilir (dependency injection).
 
 ---
 
 # 📦 atabey::drivers
 
-**Donanım soyutlama katmanı**
+**Donanım soyutlama katmanı (HAL benzeri yapı)**
+
+Bu katman donanıma bağımlıdır. Sensör, aktüatör ve çevre birimlerinin gerçek sürücüleri burada yer alır.
 
 ### Sensörler
 
@@ -72,19 +83,21 @@ atabey::utils        (opsiyonel)
 * `ServoDriver`
 * `MotorDriver`
 
-### Diğer
+### Diğer Donanım Bileşenleri
 
 * `FlashStorage`
 * `RcReceiver`
 * `PowerMonitor`
 
-> Not: Bu katman donanım bağımlıdır, üst katmanlar donanım detaylarını bilmemelidir.
+> Not: Üst katmanlar (core, control, estimation) donanımın **nasıl** çalıştığını bilmez; sadece arayüzü bilir.
 
 ---
 
 # 📦 atabey::control
 
 **Kontrol algoritmaları**
+
+Bu katman, uçuş kontrolünün matematiksel ve algoritmik kısmını içerir.
 
 * `IController`
 * `PID`
@@ -96,24 +109,32 @@ atabey::utils        (opsiyonel)
 * `TakeoffController`
 * `LandingController`
 
-> Not: Kontrol katmanı doğrudan driver’lara değil, core üzerinden beslenen verilere dayanmalıdır.
+> Not: Control katmanı doğrudan `drivers` ile konuşmaz.
+> Gerekli durum bilgilerini `core` ve `estimation` üzerinden alır.
 
 ---
 
 # 📦 atabey::estimation
 
-**Durum kestirimi**
+**Durum kestirimi (state estimation)**
+
+Sensör verilerinden uçağın gerçek durumunu tahmin eden katmandır.
 
 * `IEstimator`
 * `AttitudeEstimator`
 * `PositionEstimator`
 * `EkfEstimator`
 
+> Not: Bu katman yalnızca `drivers::ISensor` arayüzlerini kullanır.
+> Sensörün hangi marka/model olduğu estimation katmanını ilgilendirmez.
+
 ---
 
 # 📦 atabey::comm
 
 **Haberleşme & protokoller**
+
+Yer istasyonu, telemetri ve komut alışverişi bu katmanda yapılır.
 
 * `ICommLink`
 * `TelemetryLink`
@@ -123,19 +144,40 @@ atabey::utils        (opsiyonel)
 * `CommandParser`
 * `LogStream`
 
-> Not: Protokol değişimleri (ör. MAVLink → custom protocol) bu katman içinde izole edilmelidir.
+> Not: Haberleşme protokolü değiştiğinde (`MAVLink → custom protocol` gibi),
+> sadece `comm` katmanı etkilenmelidir. Core bundan bağımsız kalmalıdır.
 
 ---
 
 # 📦 atabey::utils
 
-**Her kütüphane içinde kullanılan ortak veri yapıları ve araçlar**
+**Ortak yardımcı yapılar**
+
+Bu katman, tüm sistem tarafından kullanılabilecek genel araçları içerir.
 
 * `Time`
 * `MathUtils`
 * `Vector3f`
 
-> Not: `utils` bağımlılıkları tek yönlü olmalı; utils hiçbir modüle bağımlı olmamalıdır.
+> Not: `utils` hiçbir modüle bağımlı olmamalıdır.
+> Bağımlılık yönü her zaman `utils → diğer modüller` şeklinde tek yönlüdür.
 
 ---
 
+## 🔒 Mimari Kurallar (Kırmızı Çizgiler)
+
+* `core`, `drivers` içindeki somut sınıfları doğrudan kullanmaz.
+* Tüm modüller mümkün olduğunca **interface üzerinden** bağlanır.
+* Donanıma bağımlı hiçbir kod `core`, `control` veya `estimation` içine sızmaz.
+* Namespace yapısı ile klasör yapısı **her zaman birebir** kalır.
+
+---
+
+## 📐 UML İçin Referans
+
+Bu doküman, oluşturulacak tüm UML class diagram ve sequence diagramları için
+**tek referans mimari tanımıdır.**
+
+UML diyagramları bu yapıdan sapamaz; mimari değişirse bu dosyanın güncellenmesi beklenir.
+
+---

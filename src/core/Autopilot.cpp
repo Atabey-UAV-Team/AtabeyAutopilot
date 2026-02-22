@@ -1,5 +1,11 @@
 #include "Autopilot.h"
 
+#include "../drivers/sensors/ISensor.h"
+#include "../estimation/IEstimator.h"
+#include "../control/IController.h"
+#include "../drivers/actuators/IActuator.h"
+#include "../comm/ICommLink.h"
+
 namespace atabey {
     namespace core {
     
@@ -16,12 +22,12 @@ namespace atabey {
         {}
 
         // Modüller
-        void Autopilot::attachIMU(ISensor* imuSensor) { imu = imuSensor; }
-        void Autopilot::attachGPS(ISensor* gpsSensor) { gps = gpsSensor; }
-        void Autopilot::attachEstimator(IEstimator* est) {estimator = est; }
-        void Autopilot::attachController(IController* ctrl){ controller = ctrl; }
-        void Autopilot::attachActuators(IActuator* act) { actuators = act; }
-        void Autopilot::attachComm(ICommLink* comm) { commLink = comm; }
+        void Autopilot::attachIMU(atabey::drivers::ISensor* imuSensor) { imu = imuSensor; }
+        void Autopilot::attachGPS(atabey::drivers::ISensor* gpsSensor) { gps = gpsSensor; }
+        void Autopilot::attachEstimator(atabey::estimation::IEstimator* est) { estimator = est; }
+        void Autopilot::attachController(atabey::control::IController* ctrl) { controller = ctrl; }
+        void Autopilot::attachActuators(atabey::drivers::IActuator* act) { actuators = act; }
+        void Autopilot::attachComm(atabey::comm::ICommLink* comm) { commLink = comm; }
 
         void Autopilot::attachScheduler(Scheduler* s) { scheduler = s; }
         void Autopilot::attachFlightModeManager(FlightModeManager* fmm) { flightModeMgr = fmm; }
@@ -75,7 +81,7 @@ namespace atabey {
         void Autopilot::estimateState() {
             if (!estimator) return;
 
-            estimator->update();
+            estimator->update(dt);
 
             roll = estimator->getRoll();
             pitch = estimator->getPitch();

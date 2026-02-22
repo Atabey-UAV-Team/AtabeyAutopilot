@@ -30,36 +30,45 @@ Autopilot yazılımı aşağıdaki ana katmanlardan oluşur:
 - **Comm**  
   Yer istasyonu / telemetri haberleşmesi (MAVLink benzeri yapı)
 
-- **App (Autopilot)**  
-  Sistem durum makinesi, uçuş modları ve üst seviye mantık
+- **Estimation**  
+  Sensör verilerinden uçağın durumunu (roll, pitch, yaw, hız, konum vb.) kestiren katman
 
 ---
 
 ## 📁 Dizin Yapısı
 ```
-fixedwing-autopilot/
+AtabeyAutopilot/
 │
-├─ firmware/
-│ └─ arduino/
-│ │ └─ Autopilot/
-│ │ │ ├─ core/ # Scheduler ve çekirdek sistemi
-│ │ │ ├─ control/ # PID ve kontrol algoritmaları
-│ │ │ ├─ comm/ # Haberleşme katmanı
-│ │ │ ├─ drivers/ # Sensör ve donanım sürücüleri
-│ │ │ └─ Autopilot.ino # Otopilot ana kütüphanesi
+├─ src/ # Arduino library (AtabeyAutopilot)
+│ ├─ AtabeyAutopilot.h # Umbrella header
+│ ├─ core/ # Autopilot core, scheduler, flight modes, failsafe
+│ ├─ control/ # Kontrol katmanı (PID, controller arayüzleri)
+│ ├─ estimation/ # Durum kestirimi (IEstimator, EKF vb.)
+│ ├─ drivers/ # Sensör ve aktüatör sürücüleri (IMU, GPS, Servo)
+│ └─ comm/ # Telemetri ve haberleşme katmanı (MAVLink, LoRa)
 │
-├─ diagrams/
-│ ├─ classDiagrams/ # Class method ve parametre diyagramları
-│ ├─ sequenceDiagrams/ # Örnek senaryolar
+├─ test/ # Arduino test sketch’leri ve donanım doğrulama kodları
+├─ diagrams/ # UML class/sequence diyagramları
+├─ MATLAB/ # Simülasyon, modelleme ve kontrol analizleri
+│ ├─ scripts/
+│ ├─ simulinkModelleri/
+│ └─ sistemDinamikleri/
 │
-├─ MATLAB/
-│ ├─ scripts/ # Simülasyon ve analiz scriptleri
-│ ├─ simulinkModelleri/ # Simulink sistem modelleri
-│ └─ sistemDinamikleri/ # Uçak dinamiği ve matematiksel modeller
-│
+├─ ARCHITECTURE.md # Yazılım mimarisi ve katmanlar
+├─ TASKS.md # Yol haritası ve görev takibi
+├─ README.md # Proje genel açıklaması
 ├─ LICENSE
-└─ README.md
+└─ library.properties # Arduino library metadata
 ```
+
+---
+
+## 📐 Kodlama Standartları
+
+- Tüm modüller arayüz (interface) üzerinden core’a bağlanır.
+- Donanıma bağımlı kodlar yalnızca `drivers/` altında tutulur.
+- Core katmanı donanımdan tamamen bağımsızdır.
+- Zamanlama Scheduler üzerinden yönetilir (delay kullanılmaz).
 
 ---
 
@@ -80,7 +89,7 @@ fixedwing-autopilot/
 
 Bu repo, gömülü yazılım ile **aynı sistemin matematiksel modelini** de içerir:
 
-- Uçak dinamikleri (longitudinal / lateral)
+- Uçak dinamikleri
 - PID kontrolcü tasarımı
 - Simulink tabanlı sistem doğrulama
 - Uçuş senaryosu simülasyonları
@@ -93,7 +102,7 @@ Bu sayede:
 
 ## 🛠 Donanım Hedefi
 
-- **MCU:** Arduino Mega Mini
+- **MCU:** Arduino Mega2560 Pro Mini
 - **Sensörler:** IMU (MPU6050/9250), Barometre, GPS
 - **Haberleşme:** UART / LoRa / RC
 - **Aktüatörler:** Servo yüzeyler + ESC
@@ -103,7 +112,7 @@ Bu sayede:
 ## 🚀 Geliştirme Notları
 
 - Kod yapısı **Arduino** mimarisine yöneliktir.
-- Her alt sistem (kütüphane) bağımsız geliştirilebilir.
+- Her alt sistem bağımsız geliştirilebilir.
 - Scheduler tabanlı yapı dolayısıyla sonradan RTOS’a geçişe uygundur.
 - PID ve kontrol katmanı kolayca genişletilebilir.
 
@@ -113,8 +122,8 @@ Bu sayede:
 
 - [x] Mimari Planlaması
 - [ ] Sensör Driverleri / %60
-- [ ] Durum kestirimi (EKF) / Planlandı
-- [ ] Uçuş modları (AUTO, MANUAL) / Planladı
+- [ ] Durum kestirimi (EKF) / %0
+- [ ] Uçuş modları (AUTO, MANUAL) / %10
 - [ ] MAVLink uyumluluğu / Planlandı
 - [ ] Donanım-in-the-loop (HIL) testleri / Başlanmadı
 - [ ] Fail-safe ve güvenlik katmanları / Başlanmadı
@@ -133,6 +142,5 @@ Bu proje **Atabey İHA Elektronik Birimi** tarafından geliştirilmektedir. Otop
 - **Jad** — Uçuş kontrol algoritmaları (PID, stabilizasyon, kontrol döngüleri)
 
 Bu yapı sayesinde yazılım; **sürücüler, kontrol, navigasyon ve haberleşme** katmanları arasında net bir şekilde ayrılmıştır.
-
 
 ---

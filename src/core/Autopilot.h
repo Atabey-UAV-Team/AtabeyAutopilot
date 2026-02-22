@@ -13,16 +13,25 @@
 #include "HealthMonitor.h"
 #include "ParameterStore.h"
 
+namespace atabey::drivers {
+    class ISensor;
+    class IActuator;
+}
+
+namespace atabey::estimation {
+    class IEstimator;
+}
+
+namespace atabey::control {
+    class IController;
+}
+
+namespace atabey::comm {
+    class ICommLink;
+}
 
 namespace atabey {
     namespace core {
-
-        // Forward declarations (interface'ler başka modüllerde olacak)
-        class ISensor;
-        class IEstimator;
-        class IController;
-        class IActuator;
-        class ICommLink;
 
         class Scheduler;
         class FlightModeManager;
@@ -58,12 +67,12 @@ namespace atabey {
             float throttle;
 
             // Modüller
-            ISensor* imu;
-            ISensor* gps;
-            IEstimator* estimator;
-            IController* controller;
-            IActuator* actuators;
-            ICommLink* commLink;
+            atabey::drivers::ISensor* imu;
+            atabey::drivers::ISensor* gps;
+            atabey::estimation::IEstimator* estimator;
+            atabey::control::IController* controller;
+            atabey::drivers::IActuator* actuators;
+            atabey::comm::ICommLink* commLink;
 
             Scheduler* scheduler;
             FlightModeManager* flightModeMgr;
@@ -84,12 +93,12 @@ namespace atabey {
             Autopilot();
 
             // Bağımlılık Bağlama
-            void attachIMU(ISensor* imuSensor);
-            void attachGPS(ISensor* gpsSensor);
-            void attachEstimator(IEstimator* est);
-            void attachController(IController* ctrl);
-            void attachActuators(IActuator* act);
-            void attachComm(ICommLink* comm);
+            void attachIMU(atabey::drivers::ISensor* imuSensor);
+            void attachGPS(atabey::drivers::ISensor* gpsSensor);
+            void attachEstimator(atabey::estimation::IEstimator* est);
+            void attachController(atabey::control::IController* ctrl);
+            void attachActuators(atabey::drivers::IActuator* act);
+            void attachComm(atabey::comm::ICommLink* comm);
 
             void attachScheduler(Scheduler* s);
             void attachFlightModeManager(FlightModeManager* fmm);
