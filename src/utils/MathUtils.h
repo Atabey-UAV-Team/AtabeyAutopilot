@@ -26,6 +26,10 @@ namespace atabey {
             }
         };
 
+        inline float derivative(float prev, float current, float dt) {
+            return (current - prev) / dt;
+        }
+
         inline float clamp(float v, float minVal, float maxVal) {
             if (v < minVal) return minVal;
             if (v > maxVal) return maxVal;

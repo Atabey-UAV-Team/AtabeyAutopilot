@@ -1,0 +1,33 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+
+package "atabey::utils" {
+
+    struct Vector3f {
+        +x : float
+        +y : float
+        +z : float
+
+        +Vector3f()
+        +Vector3f(x : float, y : float, z : float)
+
+        +operator+(other : Vector3f) : Vector3f
+        +operator-(other : Vector3f) : Vector3f
+        +operator*(scalar : float) : Vector3f
+    }
+
+    class MathUtils <<utility>> {
+        {static} +derivative(prev : float, current : float, dt : float) : float
+        {static} +clamp(v : float, minVal : float, maxVal : float) : float
+        {static} +deg2rad(deg : float) : float
+        {static} +rad2deg(rad : float) : float
+        {static} +wrapPi(rad : float) : float
+        {static} +lerp(a : float, b : float, t : float) : float
+        {static} +applyDeadzone(v : float, dz : float) : float
+        {static} +angleError(target : float, current : float) : float
+    }
+
+}
+@enduml

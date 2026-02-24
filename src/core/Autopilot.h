@@ -14,23 +14,6 @@
 #include "HealthMonitor.h"
 #include "ParameterStore.h"
 
-namespace atabey::drivers {
-    class ISensor;
-    class IActuator;
-}
-
-namespace atabey::estimation {
-    class IEstimator;
-}
-
-namespace atabey::control {
-    class IController;
-}
-
-namespace atabey::comm {
-    class ICommLink;
-}
-
 namespace atabey {
     namespace core {
 
@@ -45,6 +28,8 @@ namespace atabey {
             // Zaman Yönetimi (Scheduler)
             uint32_t lastMs;
             float dt;
+
+            bool initialized;
 
             // Durum Kestirimi (Estimator output)
             float roll;

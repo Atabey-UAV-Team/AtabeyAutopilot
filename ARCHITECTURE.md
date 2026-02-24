@@ -156,6 +156,7 @@ Yer istasyonu, telemetri ve komut alışverişi bu katmanda yapılır.
 Bu katman, tüm sistem tarafından kullanılabilecek genel araçları içerir.
 
 * `MathUtils`
+* `DspUtils`
 
 > Not: `utils` hiçbir modüle bağımlı olmamalıdır.
 > Bağımlılık yönü her zaman `utils → diğer modüller` şeklinde tek yönlüdür.
