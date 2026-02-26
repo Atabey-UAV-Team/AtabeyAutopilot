@@ -3,6 +3,8 @@
 namespace atabey {
     namespace core {
 
+        ParameterStore::ParameterStore() {}
+
         void ParameterStore::load() {
             // TODO: EEPROM/Flash
         }
@@ -11,7 +13,7 @@ namespace atabey {
             // TODO: EEPROM/Flash
         }
 
-        float ParameterStore::get(const char* name) {
+        float ParameterStore::get(const char* name) const {
             (void)name;
             return 0.0f;
         }
