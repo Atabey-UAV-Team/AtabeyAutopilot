@@ -1,5 +1,9 @@
+#include <Arduino.h>
 #include "imu.h"
 #include <Wire.h>
+#include "../../utils/MathUtils.h"
+
+using namespace atabey::utils;
 
 #define MPU9250_ADDR 0x68
 #define AK8963_ADDR 0x0C

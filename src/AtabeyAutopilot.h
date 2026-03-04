@@ -13,3 +13,5 @@
 #include "drivers/actuators/IActuator.h"
 #include "comm/ICommLink.h"
 #include "estimation/IEstimator.h"
+
+#include "drivers/sensors/imu.h"

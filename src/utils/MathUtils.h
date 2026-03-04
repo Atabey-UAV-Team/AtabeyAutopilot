@@ -5,23 +5,23 @@
 namespace atabey {
     namespace utils {
         
-        struct Vector3f {
+        struct Vec3f {
             float x{0.0f};
             float y{0.0f};
             float z{0.0f};
 
-            Vector3f() = default;
-            Vector3f(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
+            Vec3f() = default;
+            Vec3f(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
 
-            Vector3f operator+(const Vector3f& other) const {
+            Vec3f operator+(const Vec3f& other) const {
                 return {x + other.x, y + other.y, z + other.z};
             }
 
-            Vector3f operator-(const Vector3f& other) const {
+            Vec3f operator-(const Vec3f& other) const {
                 return {x - other.x, y - other.y, z - other.z};
             }
 
-            Vector3f operator*(float scalar) const {
+            Vec3f operator*(float scalar) const {
                 return {x * scalar, y * scalar, z * scalar};
             }
         };
