@@ -8,12 +8,6 @@
 #include "../comm/ICommLink.h"
 #include "../utils/MathUtils.h"
 
-#include "Scheduler.h"
-#include "FlightModeManager.h"
-#include "FailsafeManager.h"
-#include "HealthMonitor.h"
-#include "ParameterStore.h"
-
 namespace atabey {
     namespace core {
 

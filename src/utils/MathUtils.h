@@ -1,27 +1,26 @@
 #pragma once
-#include "Arduino.h"
 #include <math.h>
 
 namespace atabey {
     namespace utils {
         
-        struct Vector3f {
+        struct Vec3f {
             float x{0.0f};
             float y{0.0f};
             float z{0.0f};
 
-            Vector3f() = default;
-            Vector3f(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
+            Vec3f() = default;
+            Vec3f(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
 
-            Vector3f operator+(const Vector3f& other) const {
+            Vec3f operator+(const Vec3f& other) const {
                 return {x + other.x, y + other.y, z + other.z};
             }
 
-            Vector3f operator-(const Vector3f& other) const {
+            Vec3f operator-(const Vec3f& other) const {
                 return {x - other.x, y - other.y, z - other.z};
             }
 
-            Vector3f operator*(float scalar) const {
+            Vec3f operator*(float scalar) const {
                 return {x * scalar, y * scalar, z * scalar};
             }
         };
@@ -52,6 +51,23 @@ namespace atabey {
 
         inline float lerp(float a, float b, float t) {
             return a + (b - a) * t;   // t: 0..1
+        }
+
+        inline Vec3f lerp(const Vec3f& a, const Vec3f& b, float t) {
+            return {
+                a.x + (b.x - a.x) * t,
+                a.y + (b.y - a.y) * t,
+                a.z + (b.z - a.z) * t
+            };
+        }
+
+        inline Vec3f normalize(const Vec3f& v) {
+            float n = sqrtf(v.x*v.x + v.y*v.y + v.z*v.z);
+
+            if(n < 0.000001f)
+                return v;
+
+            return { v.x/n, v.y/n, v.z/n };
         }
 
         inline float applyDeadzone(float v, float dz) {
