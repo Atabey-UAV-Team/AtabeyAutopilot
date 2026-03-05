@@ -1,5 +1,4 @@
 #pragma once
-#include "Arduino.h"
 #include <math.h>
 
 namespace atabey {
@@ -53,6 +52,14 @@ namespace atabey {
         inline float lerp(float a, float b, float t) {
             return a + (b - a) * t;   // t: 0..1
         }
+
+        inline Vec3f lerp(const Vec3f& a, const Vec3f& b, float t) {
+            return {
+                a.x + (b.x - a.x) * t,
+                a.y + (b.y - a.y) * t,
+                a.z + (b.z - a.z) * t
+            };
+}
 
         inline float applyDeadzone(float v, float dz) {
             if (fabsf(v) < dz) return 0.0f;

@@ -24,6 +24,7 @@ namespace atabey {
 
         bool ImuSensor::init() {
             Wire.begin();
+            Wire.setClock(400000);
             healthy = true;
 
             writeRegister(MPU9250_ADDR, PWR_MGMT_1, 0x00); // Uyku modunu kapat
@@ -39,18 +40,16 @@ namespace atabey {
             uint8_t buf[6];
 
             // Akselometre
-            if (!readBytes(MPU9250_ADDR, ACCEL_XOUT_H, buf, 6)) return;
+            if (!readBytes(MPU9250_ADDR, ACCEL_XOUT_H, buf, 14)) return;
 
             ax = (int16_t)(buf[0] << 8 | buf[1]) / 16384.0f;
             ay = (int16_t)(buf[2] << 8 | buf[3]) / 16384.0f;
             az = (int16_t)(buf[4] << 8 | buf[5]) / 16384.0f;
 
             // Jiroskop
-            if (!readBytes(MPU9250_ADDR, GYRO_XOUT_H, buf, 6)) return;
-
-            gx = (int16_t)(buf[0] << 8 | buf[1]) / 131.0f;
-            gy = (int16_t)(buf[2] << 8 | buf[3]) / 131.0f;
-            gz = (int16_t)(buf[4] << 8 | buf[5]) / 131.0f;
+            gx = (int16_t)(buf[8]  << 8 | buf[9])  / 131.0f;
+            gy = (int16_t)(buf[10] << 8 | buf[11]) / 131.0f;
+            gz = (int16_t)(buf[12] << 8 | buf[13]) / 131.0f;
 
             // Manyetometre
             if (!readBytes(AK8963_ADDR, MAG_XOUT_L, buf, 6)) return;
@@ -83,7 +82,7 @@ namespace atabey {
                 return healthy;
             }
 
-            Wire.requestFrom(addr, len, true);
+            Wire.requestFrom(addr, len, 1);
             if (Wire.available() < len) {
                 healthy = false;
                 return healthy;

@@ -15,3 +15,5 @@
 #include "estimation/IEstimator.h"
 
 #include "drivers/sensors/imu.h"
+
+#include "estimation/AttitudeEstimator.h"
