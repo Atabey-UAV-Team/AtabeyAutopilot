@@ -1,16 +1,25 @@
-#include "GpsSensor.h"
+#include "gps.h"
+#include <Arduino.h>
 
 #define GPS_SERIAL Serial1
 #define GPS_BAUDRATE 38400
 
 #define UBX_CLASS_NAV 0x01
 #define UBX_ID_NAV_PVT 0x07
+#define UBX_SYNC1 0xB5
+#define UBX_SYNC2 0x62
 
 namespace atabey {
     namespace drivers {
 
         GpsSensor::GpsSensor() {
             state = WAIT_SYNC1;
+            msgClass = 0;
+            msgId = 0;
+            length = 0;
+            counter = 0;
+            ckA = 0;
+            ckB = 0;
         }
 
         bool GpsSensor::init() {
@@ -30,14 +39,16 @@ namespace atabey {
         void GpsSensor::parseByte(uint8_t c) {
             switch (state) {
                 case WAIT_SYNC1:
-                    if (c == 0xB5)
+                    if (c == UBX_SYNC1)
                         state = WAIT_SYNC2;
 
                     break;
 
                 case WAIT_SYNC2:
-                    if (c == 0x62)
+                    if (c == UBX_SYNC2)
                         state = READ_CLASS;
+                    else if (c == UBX_SYNC1)
+                        state = WAIT_SYNC2;
                     else
                         state = WAIT_SYNC1;
 
@@ -86,7 +97,13 @@ namespace atabey {
                     break;
 
                 case READ_PAYLOAD:
-                    payload[counter++] = c;
+                    if (counter < sizeof(payload))
+                        payload[counter++] = c;
+                    else {
+                        state = WAIT_SYNC1;
+                        break;
+                    }
+                    
                     ckA += c;
                     ckB += ckA;
 
@@ -118,8 +135,8 @@ namespace atabey {
 
                 if (length != sizeof(NavPVT))
                     return;
-                    
-                NavPVT* nav = reinterpret_cast<NavPVT*>(payload);
+
+                const NavPVT* nav = reinterpret_cast<const NavPVT*>(payload);
 
                 gps.lat = nav->lat;
                 gps.lon = nav->lon;
@@ -136,6 +153,8 @@ namespace atabey {
         }
 
         bool GpsSensor::isHealthy() const {
+            if (gps.lastUpdate == 0)
+                return false;
             // GPS verisi en fazla 1 saniye eski olabilir
             return millis() - gps.lastUpdate < 2000;
         }
