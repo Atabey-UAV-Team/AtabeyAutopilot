@@ -19,3 +19,5 @@
 #include "drivers/actuators/servo.h"
 
 #include "estimation/AttitudeEstimator.h"
+
+#include "comm/rc.h"

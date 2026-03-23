@@ -1,6 +1,8 @@
-#include "Receiver.h"
+#include <AtabeyAutopilot.h>
 
-Receiver Receiver;
+using namespace atabey::comm;
+
+Receiver receiver;
 
 void setup() {
   Serial.begin(9600);

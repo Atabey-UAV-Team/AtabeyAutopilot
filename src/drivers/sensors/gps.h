@@ -9,9 +9,9 @@ namespace atabey {
     namespace drivers {
 
         struct GpsState {
-            int32_t lat = 0;   // deg * 1e7
-            int32_t lon = 0;   // deg * 1e7
-            int32_t alt = 0;   // mm
+            int32_t lat = 0; // deg * 1e7
+            int32_t lon = 0; // deg * 1e7
+            int32_t alt = 0; // mm
 
             int32_t velN = 0;
             int32_t velE = 0;
