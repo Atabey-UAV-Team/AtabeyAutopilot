@@ -13,10 +13,6 @@ namespace atabey {
 
         template<uint8_t ELEVON_SOL_PIN, uint8_t ELEVON_SAG_PIN>
         class ServoPWM : public atabey::drivers::IActuator {
-            private:
-                int8_t solAngle = 0; // Sol elevon açısı (derece cinsinden)
-                int8_t sagAngle = 0; // Sağ elevon açısı (derece cinsinden)
-                
             public:
                 ServoPWM() {}
 
@@ -27,11 +23,11 @@ namespace atabey {
                     return true;
                 }
 
-                void setPosition(float solAngle, float sagAngle) {
+                void setPosition(float _solAngle, float _sagAngle) {
 
-                    // Gelen açıları sınırla ve 0-255 aralığına dönüştür
-                    uint8_t solAci = (constrain(solAngle, SERVO_MIN, SERVO_MAX) - SERVO_MIN) * (PWM_MAX - PWM_MIN) / (SERVO_MAX - SERVO_MIN) + PWM_MIN;
-                    uint8_t sagAci = (constrain(sagAngle, SERVO_MIN, SERVO_MAX) - SERVO_MIN) * (PWM_MAX - PWM_MIN) / (SERVO_MAX - SERVO_MIN) + PWM_MIN;
+                    // Gelen açıları sınırla ve PWM_MIN - PWM_MAX aralığına dönüştür
+                    uint8_t solAci = (constrain(_solAngle, SERVO_MIN, SERVO_MAX) - SERVO_MIN) * (PWM_MAX - PWM_MIN) / (SERVO_MAX - SERVO_MIN) + PWM_MIN;
+                    uint8_t sagAci = (constrain(_sagAngle, SERVO_MIN, SERVO_MAX) - SERVO_MIN) * (PWM_MAX - PWM_MIN) / (SERVO_MAX - SERVO_MIN) + PWM_MIN;
 
                     analogWrite(ELEVON_SOL_PIN, solAci);
                     analogWrite(ELEVON_SAG_PIN, sagAci);

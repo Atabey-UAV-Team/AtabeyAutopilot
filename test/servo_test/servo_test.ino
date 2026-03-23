@@ -2,15 +2,13 @@
 
 using namespace atabey::drivers;
 
-ServoPWM<3,4> elevon;
+ServoPWM<11,12> elevon;
 
-void setup()
-{
+void setup() {
     elevon.init();
 }
 
-void loop()
-{
+void loop() {
     elevon.setPosition(0,0);
     delay(1000);
 

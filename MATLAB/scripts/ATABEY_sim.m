@@ -1,79 +1,74 @@
-clc, clear, close all
+%% Simülasyon Parametreleri
+clc; clear; close all;
 
-% MATLAB klasörü altında çalıştırın
-addpath('sistemDinamikleri')
-addpath('simulinkModelleri')
-simTime = 60;
+simTime   = 60;       % Saniye
+trim_type = 'level';  % 'level' | 'climb' | 'descent' | 'turn' | 'sideslip'
 
-% TRIM
-x0 = [0.1;
-    0;
-    0;
-    0;
-    0;
-    0;
-    0;
-    0;
-    0;];
+% Trim Yükle
+filename = sprintf('ATABEY_trim_%s.mat', trim_type);
 
-u = [25*pi/180;
-    0;
-    0;
-    1;];
+if isfile(filename)
+    fprintf('Trim verisi yüklendi: %s\n', filename);
+    trim = load(filename);
+    x0   = trim.X_opt;
+    u    = trim.U_opt;
+else
+    warning('"%s" bulunamadı. Varsayılan başlangıç noktası kullanılıyor.', filename);
+            x0 = [15; 0; 0; 0; 0; 0; 0; 0; 0];
+            u  = [0; 0; 1];
+end
 
-% KONTROL SINIRLARI
-u1max = 25*pi/180;       % Aileron min/max derecesi
-u1min = -1*u1max;
+% Kontrol Sınırları
+uServoMax = 20*pi/180;
+uServoMin = -1*uServoMax;
+uMotorMin = 0;
+uMotorMax = 1;
 
-u2max = 20*pi/180;       % Stabilizer min/max derecesi
-u2min = -1*u2max;
-
-u3max = 20*pi/180;       % Rudder min/max derecesi
-u3min = -1*u3max;
-
-u4min = 0;              % Motor çalışma aralığı
-u4max = 1;
-
-%% SİMÜLASYON
+%% Simülasyon
 clc
 endResults = sim("ATABEY_sistem_modeli.slx")
 
-%% PLOT
-clc, close all
+%% Plot
+clc; close all;
 X_ts = endResults.SimulatedOutputs;
 U_ts = endResults.SimulatedInputs;
 time = X_ts.Time;
 
-% 3D timeseries to 2D numeric arrays (time × states/inputs)
-X_data = permute(X_ts.Data, [3 1 2]);
-X_data = squeeze(X_data);  
+% 3D timeseries to 2D numeric arrays
+X_data = squeeze(permute(X_ts.Data, [3 1 2]));
 U_data = reshape(U_ts.Data, U_ts.Length, []);
-U_data = U_data(:,1:4);
+U_data = U_data(:, 1:3);
 
-figure('Name','Kontrol Girdileri','NumberTitle','off')
-numInputs = size(U_data,2);
+% Input
+figure('Name', sprintf('Kontrol Girdileri [%s]', trim_type), 'NumberTitle', 'off')
+numInputs  = size(U_data, 2);
+inputNames = {'Aileron', 'Elevator', 'Motor'};
+uMin       = [uServoMin, uServoMin, uMotorMin];
+uMax       = [uServoMax, uServoMax, uMotorMax];
 
 for i = 1:numInputs
-    subplot(numInputs,1,i)
+    subplot(numInputs, 1, i)
     plot(time, U_data(:,i), 'LineWidth', 1.5)
     hold on
-    yline(eval(['u' num2str(i) 'min']), '--r', 'Min')
-    yline(eval(['u' num2str(i) 'max']), '--g', 'Max')
+    yline(uMin(i), '--r', 'Min')
+    yline(uMax(i), '--g', 'Max')
     grid on
     xlabel('Simülasyon Zamanı [s]')
-    ylabel(['u_' num2str(i)])
-    title(['Kontrol Girdisi: u_' num2str(i)])
-    legend('Girdi','Min Limit','Max Limit')
+    ylabel(inputNames{i})
+    title(inputNames{i})
+    legend('Girdi', 'Min Limit', 'Max Limit')
 end
 
-figure('Name','Sistem Durumları','NumberTitle','off')
-numStates = size(X_data,2);
+% State
+figure('Name', sprintf('Sistem Durumları [%s]', trim_type), 'NumberTitle', 'off')
+numStates  = size(X_data, 2);
+stateNames = {'u', 'v', 'w', 'p', 'q', 'r', '\phi', '\theta', '\psi'};
 
 for i = 1:numStates
-    subplot(numStates,1,i)
+    subplot(3, 3, i)
     plot(time, X_data(:,i), 'LineWidth', 1.5)
     grid on
     xlabel('Simülasyon Zamanı [s]')
-    ylabel(['x_' num2str(i)])
-    title(['Durum: x_' num2str(i)])
+    ylabel(stateNames{i}, 'Interpreter', 'tex')
+    title(stateNames{i},  'Interpreter', 'tex')
 end

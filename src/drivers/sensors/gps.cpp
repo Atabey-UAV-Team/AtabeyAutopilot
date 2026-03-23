@@ -2,165 +2,161 @@
 #include <Arduino.h>
 
 #define GPS_SERIAL Serial1
-#define GPS_BAUDRATE 38400
-
-#define UBX_CLASS_NAV 0x01
-#define UBX_ID_NAV_PVT 0x07
-#define UBX_SYNC1 0xB5
-#define UBX_SYNC2 0x62
+#define GPS_BAUDRATE 9600
 
 namespace atabey {
     namespace drivers {
-
-        GpsSensor::GpsSensor() {
-            state = WAIT_SYNC1;
-            msgClass = 0;
-            msgId = 0;
-            length = 0;
-            counter = 0;
-            ckA = 0;
-            ckB = 0;
-        }
+        GpsSensor::GpsSensor() {}
 
         bool GpsSensor::init() {
             GPS_SERIAL.begin(GPS_BAUDRATE);
-            state = WAIT_SYNC1;
+            delay(500);
+            index = 0;
+
             return true;
         }
 
         void GpsSensor::update() {
+
             while (GPS_SERIAL.available()) {
-                uint8_t c = GPS_SERIAL.read();
-                parseByte(c);
-            }
 
-        }
+                char c = GPS_SERIAL.read();
 
-        void GpsSensor::parseByte(uint8_t c) {
-            switch (state) {
-                case WAIT_SYNC1:
-                    if (c == UBX_SYNC1)
-                        state = WAIT_SYNC2;
+                if (c == '\n') {
 
-                    break;
+                    lineBuffer[index] = '\0';
+                    parseLine();
+                    index = 0;
 
-                case WAIT_SYNC2:
-                    if (c == UBX_SYNC2)
-                        state = READ_CLASS;
-                    else if (c == UBX_SYNC1)
-                        state = WAIT_SYNC2;
-                    else
-                        state = WAIT_SYNC1;
+                } else {
 
-                    break;
-
-                case READ_CLASS:
-                    msgClass = c;
-                    ckA = ckB = 0;
-                    ckA += c;
-                    ckB += ckA;
-                    state = READ_ID;
-
-                    break;
-
-                case READ_ID:
-                    msgId = c;
-                    ckA += c;
-                    ckB += ckA;
-                    state = READ_LENGTH1;
-
-                    break;
-
-                case READ_LENGTH1:
-                    length = c;
-                    ckA += c;
-                    ckB += ckA;
-                    state = READ_LENGTH2;
-
-                    break;
-
-                case READ_LENGTH2:
-                    length |= (uint16_t)c << 8;
-
-                    ckA += c;
-                    ckB += ckA;
-
-                    counter = 0;
-                    if (length > sizeof(payload)) {
-
-                        state = WAIT_SYNC1;
-                        break;
-
-                    }
-                    state = READ_PAYLOAD;
-
-                    break;
-
-                case READ_PAYLOAD:
-                    if (counter < sizeof(payload))
-                        payload[counter++] = c;
-                    else {
-                        state = WAIT_SYNC1;
-                        break;
-                    }
-                    
-                    ckA += c;
-                    ckB += ckA;
-
-                    if (counter >= length)
-                        state = READ_CKA;
-
-                    break;
-
-                case READ_CKA:
-                    if (c == ckA)
-                        state = READ_CKB;
-                    else
-                        state = WAIT_SYNC1;
-
-                    break;
-
-                case READ_CKB:
-                    if (c == ckB)
-                        processPacket();
-
-                    state = WAIT_SYNC1;
-
-                    break;
+                    if (index < BUFFER_SIZE - 1)
+                        lineBuffer[index++] = c;
+                }
             }
         }
 
-        void GpsSensor::processPacket() {
-            if (msgClass == UBX_CLASS_NAV && msgId == UBX_ID_NAV_PVT) {
+        int32_t GpsSensor::parseLatLon(const char* value, const char* hemi) {
 
-                if (length != sizeof(NavPVT))
-                    return;
+            float raw = atof(value);
 
-                const NavPVT* nav = reinterpret_cast<const NavPVT*>(payload);
+            int deg = (int)(raw / 100);
+            float minutes = raw - deg * 100;
 
-                gps.lat = nav->lat;
-                gps.lon = nav->lon;
-                gps.alt = nav->hMSL;
+            float decimal = deg + minutes / 60.0;
 
-                gps.velN = nav->velN;
-                gps.velE = nav->velE;
-                gps.velD = nav->velD;
+            if (hemi[0] == 'S' || hemi[0] == 'W')
+                decimal = -decimal;
 
-                gps.fixType = nav->fixType;
+            return (int32_t)(decimal * 1e7);
+        }
+
+        float GpsSensor::parseFloat(const char* s) {
+            return atof(s);
+        }
+
+        void GpsSensor::parseLine() {
+
+            if (strncmp(lineBuffer, "$GPRMC", 6) == 0) {
+
+                char *token;
+                char *ptr = lineBuffer;
+
+                uint8_t field = 0;
+
+                char lat[16], latH[2];
+                char lon[16], lonH[2];
+                char speed[16];
+
+                while ((token = strtok_r(ptr, ",", &ptr))) {
+
+                    switch(field) {
+
+                        case 2: // status
+                            if (token[0] != 'A')
+                                return;
+                            break;
+
+                        case 3:
+                            strcpy(lat, token);
+                            break;
+
+                        case 4:
+                            strcpy(latH, token);
+                            break;
+
+                        case 5:
+                            strcpy(lon, token);
+                            break;
+
+                        case 6:
+                            strcpy(lonH, token);
+                            break;
+
+                        case 7:
+                            strcpy(speed, token);
+                            break;
+                    }
+
+                    field++;
+                }
+
+                gps.lat = parseLatLon(lat, latH);
+                gps.lon = parseLatLon(lon, lonH);
+
+                float knots = parseFloat(speed);
+                float mps = knots * 0.514444f;
+
+                gps.velN = (int32_t)(mps * 1000);
+                gps.velE = 0;
+                gps.velD = 0;
 
                 gps.lastUpdate = millis();
             }
-        }
 
-        bool GpsSensor::isHealthy() const {
-            if (gps.lastUpdate == 0)
-                return false;
-            // GPS verisi en fazla 1 saniye eski olabilir
-            return millis() - gps.lastUpdate < 2000;
+            else if (strncmp(lineBuffer, "$GPGGA", 6) == 0) {
+
+                char *token;
+                char *ptr = lineBuffer;
+
+                uint8_t field = 0;
+
+                char fix[4];
+                char alt[16];
+
+                while ((token = strtok_r(ptr, ",", &ptr))) {
+
+                    switch(field) {
+
+                        case 6:
+                            strcpy(fix, token);
+                            break;
+
+                        case 9:
+                            strcpy(alt, token);
+                            break;
+                    }
+
+                    field++;
+                }
+
+                gps.fixType = atoi(fix);
+
+                float meters = atof(alt);
+                gps.alt = (int32_t)(meters * 1000);
+            }
         }
 
         bool GpsSensor::hasFix() {
-            return gps.fixType >= 3;
+            return gps.fixType > 0;
+        }
+
+        bool GpsSensor::isHealthy() const {
+
+            if (gps.lastUpdate == 0)
+                return false;
+
+            return millis() - gps.lastUpdate < 2000;
         }
 
         int32_t GpsSensor::getLat() {

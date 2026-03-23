@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Arduino.h"
+#include <Arduino.h>
 #include "ISensor.h"
 #include "../../utils/MathUtils.h"
 
