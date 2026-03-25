@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/Autopilot.h"
 #include "utils/MathUtils.h"
 #include "core/Scheduler.h"
 #include "core/FlightModeManager.h"
@@ -10,7 +9,7 @@
 
 #include "control/IController.h"
 #include "drivers/sensors/ISensor.h"
-#include "drivers/actuators/IActuator.h"
+#include "drivers/actuators/ServoDriver.h"
 #include "comm/ICommLink.h"
 #include "estimation/IEstimator.h"
 
