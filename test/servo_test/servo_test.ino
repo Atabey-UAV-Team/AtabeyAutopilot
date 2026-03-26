@@ -2,8 +2,8 @@
 
 using namespace atabey::drivers;
 
-Timer3ServoDriver driver;
-ServoPWM<Timer3ServoDriver> elevon(driver, 0, 1);
+Timer4ServoDriver servoDriver;
+ServoPWM<Timer4ServoDriver> elevon(servoDriver, 0, 1);
 
 void setup() {
     elevon.init();
