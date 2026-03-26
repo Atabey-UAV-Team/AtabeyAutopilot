@@ -1,90 +1,166 @@
 function XDOT = ATABEY_dynamics(X, U)
 
-%-----------------------SABITLER-------------------------------
-m = 2.5;                      % Toplam kutle (kg)
-cbar = 0.30;                  % Ortalama aerodinamik kord
-S = 0.39;                     % Kanat alani 
-b = 1.30;                     % Kanat acikligi
+%-----------------------CONSTANTS-------------------------------
+m = 2.5;                       %Aircraft total mass (kg)
 
-Xcg = 0.216; Ycg = 0; Zcg = 0.04;    % Yeni CG konumlari
-Xac = 0.225; Yac = 0; Zac = 0;       % Yeni AC konumlari
+cbar = 0.3;                     %Mean Aerodynamic Chord (m)
+S = 0.38;                       %Wing planform area (m^2)
+b = 1.3;                        % Kanat açıklığı (m)
 
-% Motor
-% Sunnysky 3520 520kv & 14*8 Pervane verilerine gore set edildi
-Umax = 26.1;
+Xcg = 0.216;                    %x position of CoG in Fm (m)
+Ycg = 0;                        %y position of CoG in Fm (m)
+Zcg = 0.04;                     %z position of CoG in Fm (m)
 
-rho = 1.225;
-g = 9.81;
+Xac = 0.225;                    %x position of aerodynamic center in Fm (m)
+Yac = 0;                        %y position of aerodynamic center in Fm (m)
+Zac = 0;                        %z position of aerodynamic center in Fm (m)
 
-%-------------------KONTROL GIRDIRLERI-------------------------
-u1 = U(1); % d_A
-u2 = U(2); % d_e
-u3 = U(3); % d_th
+%Engine inputs
+Umax  = 26.1;                   %maximum thrust provided by one engine (N)
 
-% Trim/Reflex ayari
-de_trim = deg2rad(-5.8);
-u2_eff = u2 + de_trim;
+Xapt = 0;                       %x position of engine force in Fm (m)
+Yapt = 0;                       %y position of engine force in Fm (m)
+Zapt = 0.04;                    %z position of engine force in Fm (m)
 
-%-------------------DURUM DEGISKENLERI-------------------------
-u = X(1); v = X(2); w = X(3);
-p = X(4); q = X(5); r = X(6);
-phi = X(7); theta = X(8); psi = X(9);
+%Other constants
+rho = 1.225;                    %Air density (kg/m^3)
+g = 9.81;                       %Gravitational acceleration (m/s^2)
+alpha_L0 = 0.0523;              %Zero lift angle of attack (rad)
+n = 5.5;                        %Slope of linear region of lift slope
 
-Va = sqrt(u^2 + v^2 + w^2);
-alpha = atan2(w,u);
-beta = asin(v/Va);
+%--------------------------STATE VECTOR----------------------------------
+%Extract state vector
+x1 = X(1);                              %u
+x2 = X(2);                              %v
+x3 = X(3);                              %w
+x4 = X(4);                              %p
+x5 = X(5);                              %q
+x6 = X(6);                              %r
+x7 = X(7);                              %phi
+x8 = X(8);                              %theta
+x9 = X(9);                              %psi
+
+u1 = U(1);                              %d_A (aileron)
+u2 = U(2);                              %d_T (stabilizer)
+u3 = U(3);                              %d_th (throttle)
+u4 = U(4);
+
+%---------------INTERMEDIATE VARIABLES------------------------
+%Calculate airspeed
+Va = sqrt(x1^2 + x2^2 + x3^2);
+
+%Calculate alpha and beta
+alpha = atan2(x3,x1);
+beta = asin(x2/Va);
+
+%Calculate dynamic pressure
 Q = 0.5*rho*Va^2;
 
-%-------------------AERODINAMIK KUVVETLER----------------------
-CL = 4.3 * alpha + 0.15 * u2_eff;
-CD = 0.02 + 0.05 * CL^2;
-CY = -0.15 * beta;
+%Also define the vectors wbe_b and V_b 
+wbe_b = [x4;x5;x6];
+V_b = [x1;x2;x3];
 
-FA_s = [-CD*Q*S; CY*Q*S; -CL*Q*S];
-C_bs = [cos(alpha) 0 -sin(alpha); 0 1 0; sin(alpha) 0 cos(alpha)];
-FA_b = C_bs * FA_s;
+%---------------AERODYNAMIC FORCE COEFFICIENTS----------------
+%Total lift force
+CL = 0.15;
 
-%-------------------AERODINAMIK MOMENTLER----------------------
-wbe_b = [p; q; r];
-eta = [0; -0.07; 0]; % Profil dogal momenti
+%Total drag force (neglecting tail)
+CD =  0.025;
 
-dCMdx = [-0.15*(b/(2*Va))         0                     0;
-                0         -0.02*(cbar/(2*Va))           0;
-                0                 0             -0.10*(b/(2*Va))];
+%Calculate sideforce
+CY = -0.15;
 
-dCMdu = [0.103   0      0;
-          0   0.068    0;
-          0      0    0.05];
+%--------------DIMENSIONAL AERODYNAMIC FORCES---------------------
+%Calculate the actual dimensional forces.  These are in F_s (stability axis)
+FA_s = [-CD*Q*S;
+         CY*Q*S;
+        -CL*Q*S];
+    
+%Rotate these forces to F_b (body axis)
+C_bs = [cos(alpha) 0 -sin(alpha);
+        0 1 0;
+        sin(alpha) 0 cos(alpha)];
+    
+FA_b = C_bs*FA_s;
 
-CMac_b = eta + dCMdx*wbe_b + dCMdu*[u1; u2_eff; 0];
+%--------------AERODYNAMIC MOMENT ABOUT AC-------------------
+%Calculate the moments in Fb.  Define eta, dCMdx and dCMdu
+eta11 = 0;
+eta21 = -0.09*Q*S*cbar;
+eta31 = 0;
 
-MAac_b = CMac_b*Q*S*cbar;
+eta = [eta11;
+       eta21;
+       eta31];
 
-%--------------CG ETRAFINDA AERODINAMIK MOMENTLER------------------
+dCMdx = [-0.15*(b/(2*Va)),         0,                     0;
+                0,         -0.03*(cbar/(2*Va)),           0;
+                0,                 0,             -0.12*(b/(2*Va))];
+
+dCMdu = [0.103,   0,      0;   
+          0,    0.075,    0;   
+          0,      0,    0.05];
+
+%Now calculate CM = [Cl;Cm;Cn] about Aerodynamic center in Fb
+CMac_b = eta + dCMdx*wbe_b + dCMdu*[u1;u2;u3];
+
+%OPTIONAL: Covert this to stability axis
+C_sb = C_bs';
+Mac_b = CMac_b*Q*S*cbar;
+Mac_s = C_sb*Mac_b;
+
+%--------------AERODYNAMIC MOMENT ABOUT CG-------------------
+%Transfer moment to cg
 rcg_b = [Xcg;Ycg;Zcg];
 rac_b = [Xac;Yac;Zac];
-MAcg_b = MAac_b + cross(FA_b,rcg_b - rac_b);
+MAcg_b = C_bs*Mac_s + cross(FA_b,rcg_b - rac_b);
 
-%-----------------MOTOR KUVVET VE MOMENTI----------------------------
-F_engine = u3*Umax;                   
-FE_b = [F_engine;0;0];
+%-----------------ENGINE FORCE & MOMENT----------------------------
+%Now effect of engine.  First, calculate the thrust of each engine
+F = u4*Umax;
 
-MEcg_b = cross([Xcg - 0; 0; 0], FE_b);
+%Assuming that engine thrust is aligned with Fb, we have
+FE_b = [F;0;0];
+  
+%Now engine moment due to offset of engine thrust from CoG.
+mew = [Xcg - Xapt;
+        Yapt - Ycg;
+        Zcg - Zapt];
+        
+MEcg_b = cross(mew,FE_b);
 
-%-----------------YERCEKIMI VE DINAMIK-------------------------------
-Fg_b = m*g*[-sin(theta); cos(theta)*sin(phi); cos(theta)*cos(phi)];
+%--------------------GRAVITY EFFECTS--------------------------------
+%Calculate gravitational forces in the body frame.  This causes no moment
+%about CoG.
+g_b = [-g*sin(x8);
+        g*cos(x8)*sin(x7);
+        g*cos(x8)*cos(x7)];
+  
+Fg_b = m*g_b;
 
+%-------------------STATE DERIVATIVES------------------------------
+%Inertia matrix
 Ib = [0.252 0 0; 0 0.052 0; 0 0 0.301];
+    
+%Inverse of inertia matrix 
 invIb = [3.9683,0,0;0,19.2308,0;0,0,3.3223];
 
-XDOT = zeros(1, 9);
+%Form F_b (all the forces in Fb) and calculate udot, vdot, wdot
+F_b = Fg_b + FE_b + FA_b;
+x1to3dot = (1/m)*F_b - cross(wbe_b,V_b);
 
-XDOT(1:3) = (1/m)*(FA_b + FE_b + Fg_b) - cross(X(4:6), X(1:3));
-XDOT(4:6) = invIb * (MAcg_b + MEcg_b - cross(X(4:6), Ib * X(4:6)));
+%Form Mcg_b (all moments about CoG in Fb) and calculate pdot, qdot, rdot.
+Mcg_b = MAcg_b + MEcg_b;
+x4to6dot = invIb*(Mcg_b - cross(wbe_b,Ib*wbe_b));
 
-T = [1 sin(phi)*tan(theta) cos(phi)*tan(theta);
-     0 cos(phi) -sin(phi);
-     0 sin(phi)/cos(theta) cos(phi)/cos(theta)];
-XDOT(7:9) = T * X(4:6);
+%Calculate phidot,thetadot, and psidot    
+H_phi = [1 sin(x7)*tan(x8) cos(x7)*tan(x8);
+         0 cos(x7) -sin(x7);
+         0 sin(x7)/cos(x8) cos(x7)/cos(x8)];
+    
+x7to9dot = H_phi*wbe_b;
 
-XDOT = XDOT';
+%Place in first order form
+XDOT = [x1to3dot;
+        x4to6dot;
+        x7to9dot];
