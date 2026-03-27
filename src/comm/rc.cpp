@@ -23,19 +23,19 @@ namespace atabey {
         }
 
         int Receiver::getRoll() {
-        return map(rollValue, MIN_PWM, MAX_PWM, -100, 100);
+        return map(rollValue, 945, 1975, -100, 100);
         }
 
         int Receiver::getPitch() {
-        return map(pitchValue, MIN_PWM, MAX_PWM, -100, 100);
+        return map(pitchValue, 945, 1950, -100, 100);
         }
 
         int Receiver::getThrottle() {
-        return map(throttleValue, MIN_PWM, MAX_PWM, 0, 100);
+        return map(throttleValue, 950, 1990, 0, 100);
         }
 
         int Receiver::getYaw() {
-        return map(yawValue, MIN_PWM, MAX_PWM, -100, 100);
+        return map(yawValue, 970, 1965, -100, 100);
         }
 
         int Receiver::getRawRoll() {

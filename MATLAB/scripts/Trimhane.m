@@ -1,24 +1,25 @@
 clc; clear; close all
 
+% Hedeflenen uçuş hızı
 V_target = 85;
 
-% --- Başlangıç Tahmini: .mat dosyası varsa onu kullan ---
+% Kayıt dosyası adı. Hazır çözüm varsa onun üzerinden tekrar çöz
 mat_file = 'RCAM_trim_solution2.mat';
 
 if isfile(mat_file)
     disp('Mevcut trim çözümü bulundu. Z_star başlangıç tahmini olarak yükleniyor...');
     load(mat_file, 'Z_star');
-    Z_guess = Z_star;  % Önceki çözümden sıcak başlangıç
+    Z_guess = Z_star;  % Önceki çözümden başlangıç
 else
     disp('Kayıtlı trim çözümü bulunamadı. Varsayılan başlangıç tahmini kullanılıyor...');
 
     % X_o: Durumlar için başlangıç tahmini (9x1)
     X_o = zeros(9, 1);
     X_o(1) = V_target; % İleri hız tahmini
-    X_o(8) = 0.05;     % Havada tutunmak için ufak bir başlangıç yunuslama (pitch) açısı
+    X_o(8) = 0.05;     % Havada tutunmak için ufak bir başlangıç yunuslama açısı
 
-    % U_o: Girdiler için başlangıç tahmini (3x1)
-    U_o = zeros(5, 1);
+    % U_o: Girdiler için başlangıç tahmini
+    U_o = zeros(4, 1);
     U_o(4) = 0.2;      % Maks thrust'ın ~%20'si civarında bir başlangıç gaz tahmini
 
     % Tahminleri birleştir (12x1)

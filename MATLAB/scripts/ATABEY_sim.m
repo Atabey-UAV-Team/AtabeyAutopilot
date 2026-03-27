@@ -1,7 +1,7 @@
 %% Simülasyon Parametreleri
 clc; clear; close all;
 
-simTime   = 10;       % Saniye
+simTime   = 60;       % Saniye
 
 load("ATABEY_trim_solution.mat")
 x0 = XStar;
@@ -26,7 +26,7 @@ X_data = squeeze(permute(X_ts.Data, [3 1 2]));
 U_data = reshape(U_ts.Data, U_ts.Length, []);
 P_data = squeeze(permute(P_ts.Data, [3 1 2]));
 
-% Input
+% Girdi
 figure('Name', 'Kontrol Girdileri', 'NumberTitle', 'off')
 numInputs  = size(U_data, 2);
 inputNames = {'Aileron', 'Elevator', 'Rudder', 'Motor'};
@@ -45,7 +45,7 @@ for i = 1:numInputs
     legend('Girdi', 'Min Limit', 'Max Limit')
 end
 
-% State
+% Durum
 figure('Name', 'Sistem Durumları', 'NumberTitle', 'off')
 numStates  = size(X_data, 2);
 stateNames = {'u', 'v', 'w', 'p', 'q', 'r', '\phi', '\theta', '\psi'};
@@ -58,7 +58,7 @@ for i = 1:numStates
     title(stateNames{i},  'Interpreter', 'tex')
 end
 
-% Positions
+% Konum
 figure('Name', 'Simüle Edilen Pozisyonlar', 'NumberTitle', 'off')
 posNames = {'X [m]', 'Y [m]', 'Z [m]'};
 for i = 1:3
