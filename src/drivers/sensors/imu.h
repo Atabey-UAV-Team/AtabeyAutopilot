@@ -16,6 +16,7 @@ namespace atabey {
                 Vec3f mag = Vec3f(0, 0, 0);   // Manyetometre data
 
                 Vec3f gyroBias = Vec3f(0, 0, 0); // Jiroskop bias'ı (kalibrasyon sonrası)
+                Vec3f gyroCalibration = Vec3f(0, 0, 0); // Kalibrasyon sırasında toplanan jiroskop verilerinin ortalaması
 
                 bool healthy;
             public:
