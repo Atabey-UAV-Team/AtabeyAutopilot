@@ -21,8 +21,8 @@ namespace atabey {
 
         template<class Driver>
         void ServoPWM<Driver>::disarm() {
-            _driver.write_us(_ch1, SERVO_MIN_US);
-            _driver.write_us(_ch2, SERVO_MIN_US);
+            _driver.write_us(_ch1, SERVO_TRIM_US);
+            _driver.write_us(_ch2, SERVO_TRIM_US);
         }
 
         template<class Driver>
@@ -36,7 +36,8 @@ namespace atabey {
 
             norm = norm * 2.0f - 1.0f;
 
-            float halfRange = (SERVO_MAX_US - SERVO_MIN_US) * 0.5f;
+            // SERVO_MAX_US - SERVO_MIN_US * 0.5f
+            float halfRange = 500.0f;
 
             return SERVO_TRIM_US + norm * halfRange;
         }

@@ -26,10 +26,7 @@ namespace atabey {
             return true;
         }
 
-        void AttitudeEstimator::update() {
-            Vec3f accel = normalize(imu->getAccel()); // Akselometre verilerini normalize ederek kullanıyoruz
-            Vec3f gyro = imu->getGyro();
-
+        void AttitudeEstimator::update(const ImuSample& sample) {
             nowMicros = micros();
             dt = (nowMicros - prevMicros) / 1000000.0f; // Saniyeye dönüştürmek için
             prevMicros = nowMicros;
