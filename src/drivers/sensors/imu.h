@@ -4,14 +4,18 @@
 #include "ISensor.h"
 #include "../../utils/MathUtils.h"
 
+ using namespace atabey::utils;
+
 namespace atabey {
     namespace drivers {
 
         class ImuSensor : public atabey::drivers::ISensor {
             private:
-                float ax, ay, az; // Akselometre data
-                float gx, gy, gz; // Jiroskop data
-                float mx, my, mz; // Manyetometre data
+                Vec3f accel = Vec3f(0, 0, 0); // Akselometre data
+                Vec3f gyro = Vec3f(0, 0, 0);  // Jiroskop data
+                Vec3f mag = Vec3f(0, 0, 0);   // Manyetometre data
+
+                Vec3f gyroBias = Vec3f(0, 0, 0); // Jiroskop bias'ı (kalibrasyon sonrası)
 
                 bool healthy;
             public:
@@ -19,15 +23,17 @@ namespace atabey {
 
                 bool init() override;
                 void update() override;
+                bool calibrate();
 
                 bool isHealthy() const override;
+                bool isStable() const; // Jiroskopun stabil olup olmadığını kontrol eder (kalibrasyon için)
                 
                 bool writeRegister(uint8_t addr, uint8_t reg, uint8_t data);
                 bool readBytes(uint8_t addr, uint8_t reg, uint8_t* buffer, uint8_t len);
 
-                atabey::utils::Vec3f getAccel() const;
-                atabey::utils::Vec3f getGyro() const;
-                atabey::utils::Vec3f getMag() const;
+                Vec3f getAccel() const;
+                Vec3f getGyro() const;
+                Vec3f getMag() const;
         };
     
     }
