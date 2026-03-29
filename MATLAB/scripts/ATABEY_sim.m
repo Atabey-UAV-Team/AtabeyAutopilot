@@ -1,8 +1,9 @@
 %% Simülasyon Parametreleri
 clc; clear; close all;
 
-simTime   = 60;       % Saniye
+simTime   = 300;       % Saniye
 
+% Oluşturulmuş Trim Dosyasını Yükle
 load("ATABEY_trim_solution.mat")
 x0 = XStar;
 u  = UStar;
@@ -29,9 +30,9 @@ P_data = squeeze(permute(P_ts.Data, [3 1 2]));
 % Girdi
 figure('Name', 'Kontrol Girdileri', 'NumberTitle', 'off')
 numInputs  = size(U_data, 2);
-inputNames = {'Aileron', 'Elevator', 'Rudder', 'Motor'};
-uMin       = [-uServoMax, -uServoMax, -uServoMax, 0];
-uMax       = [ uServoMax,  uServoMax,  uServoMax, 1];
+inputNames = {'Left', 'Right', 'Motor'};
+uMin       = [-uServoMax, -uServoMax,  0];
+uMax       = [ uServoMax,  uServoMax,  1];
 for i = 1:numInputs
     subplot(numInputs, 1, i)
     plot(time, U_data(:,i), 'LineWidth', 1.5)
