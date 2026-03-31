@@ -1,44 +1,36 @@
 #pragma once
 
-#include "Arduino.h"
-#include "IActuator.h"
+#include "ServoDriver.h"
 
-#define SERVO_MIN -20 // Derece cinsinden minimum servo açısı
-#define SERVO_MAX 20  // Derece cinsinden maksimum servo açısı
-#define PWM_MIN 120 // 490 Hz sinyali pwm pulse olarak kullanmak için yaptık.
-#define PWM_MAX 250
+// Servo fiziksel aralığı
+#define SERVO_MIN_US 1000
+#define SERVO_MAX_US 2000
+#define SERVO_TRIM_US 1500
+
+// Elevon çalışma aralığı
+#define ELEVON_MIN_ANGLE -20.0f
+#define ELEVON_MAX_ANGLE 20.0f
 
 namespace atabey {
     namespace drivers {
 
-        template<uint8_t ELEVON_SOL_PIN, uint8_t ELEVON_SAG_PIN>
-        class ServoPWM : public atabey::drivers::IActuator {
+        template<class Driver>
+        class ServoPWM {
+            private:
+                Driver& _driver;
+                uint8_t _ch1, _ch2;
+
+                uint16_t angleToUs(float angle);
+
             public:
-                ServoPWM() {}
+                ServoPWM(Driver& driver, uint8_t ch1, uint8_t ch2);
 
-                bool init() override {
-                    pinMode(ELEVON_SOL_PIN, OUTPUT);
-                    pinMode(ELEVON_SAG_PIN, OUTPUT);
-                    disarm();
-                    return true;
-                }
-
-                void setPosition(float _solAngle, float _sagAngle) {
-
-                    // Gelen açıları sınırla ve PWM_MIN - PWM_MAX aralığına dönüştür
-                    uint8_t solAci = (constrain(_solAngle, SERVO_MIN, SERVO_MAX) - SERVO_MIN) * (PWM_MAX - PWM_MIN) / (SERVO_MAX - SERVO_MIN) + PWM_MIN;
-                    uint8_t sagAci = (constrain(_sagAngle, SERVO_MIN, SERVO_MAX) - SERVO_MIN) * (PWM_MAX - PWM_MIN) / (SERVO_MAX - SERVO_MIN) + PWM_MIN;
-
-                    analogWrite(ELEVON_SOL_PIN, solAci);
-                    analogWrite(ELEVON_SAG_PIN, sagAci);
-                }
-
-                void disarm() {
-                    analogWrite(ELEVON_SOL_PIN, 0);
-                    analogWrite(ELEVON_SAG_PIN, 0);
-                }
-
-            };
+                void init();
+                void setPosition(float solAngle, float sagAngle);
+                void disarm();
+        };
 
     }
 }
+
+#include "servo.tpp"

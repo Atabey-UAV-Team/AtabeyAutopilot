@@ -4,6 +4,13 @@ using namespace atabey::comm;
 
 Receiver receiver;
 
+/* MEGA PINOUT
+ * CH1: Roll - PIN 2
+ * CH2: Pitch - PIN 3
+ * CH3: Throttle - PIN 18
+ * CH4: Yaw - PIN 19
+ */
+
 void setup() {
   Serial.begin(9600);
   receiver.init();

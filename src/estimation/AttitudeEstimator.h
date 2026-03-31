@@ -4,12 +4,21 @@
 #include "../drivers/sensors/imu.h"
 #include "../utils/MathUtils.h"
 
+using namespace atabey::drivers;
+using namespace atabey::utils;
+
 namespace atabey {
     namespace estimation {
 
+        struct ImuSample {
+            Vec3f accel;
+            Vec3f gyro;
+            Vec3f mag;
+        };
+
         class AttitudeEstimator : public IEstimator {
             private:
-                atabey::drivers::ImuSensor* imu;
+                ImuSensor* imu;
 
                 float roll{0};
                 float pitch{0};
@@ -30,19 +39,19 @@ namespace atabey {
 
                 float normalized{0};
                 float dt;
-                unsigned long prevMicros{0};
-                unsigned long nowMicros{0};
+                uint32_t prevMicros{0};
+                uint32_t nowMicros{0};
 
                 float sampleSum{0};
                 float sample{0};
 
             public:
-                AttitudeEstimator(atabey::drivers::ImuSensor& imuSensor);
+                AttitudeEstimator(ImuSensor& imuSensor);
 
                 bool init() override;
-                void update() override;
-                atabey::utils::Vec3f getAttitude() const;
-                atabey::utils::Vec3f getRates() const;
+                void update(const ImuSample& sample) override;
+                Vec3f getAttitude() const;
+                Vec3f getRates() const;
         };
 
     }
