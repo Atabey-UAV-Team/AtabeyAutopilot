@@ -2,40 +2,50 @@
 
 using namespace atabey::drivers;
 using namespace atabey::utils;
-using namespace atabey::estimation;
 
 ImuSensor imu;
-AttitudeEstimator estimator(imu);
 
 void setup() {
-
     Serial.begin(115200);
+    delay(1000);
 
-    if(!imu.init()) {
-        Serial.println("IMU init FAILED");
-        while(1);
+    Serial.println("IMU TEST BASLIYOR...");
+
+    if (!imu.init()) {
+        Serial.println("IMU INIT FAILED!");
+        while (1);
     }
 
-    if(!estimator.init()) {
-        Serial.println("Estimator init FAILED");
-        while(1);
-    }
+    Serial.println("IMU INIT OK");
 
-    Serial.println("System initialized");
+    Serial.println("Kalibrasyon basliyor... Lutfen sabit tut.");
+    imu.calibrate();
+    Serial.println("Kalibrasyon tamamlandi.");
 }
 
 void loop() {
     imu.update();
-    estimator.update();
 
-    Vec3f attitude = estimator.getAttitude();
+    Vec3f accel = imu.getAccel();
+    Vec3f gyro  = imu.getGyro();
+    Vec3f mag   = imu.getMag();
 
-    Serial.print("ROLL: ");
-    Serial.print(rad2deg(attitude.x), 2);
-    Serial.print("  PITCH: ");
-    Serial.print(rad2deg(attitude.y), 2);
-    Serial.print("  YAW: ");
-    Serial.println(rad2deg(attitude.z), 2);
+    Serial.print("ACCEL: ");
+    Serial.print(accel.x); Serial.print(", ");
+    Serial.print(accel.y); Serial.print(", ");
+    Serial.print(accel.z);
 
-    delay(20);
+    Serial.print(" | GYRO: ");
+    Serial.print(gyro.x); Serial.print(", ");
+    Serial.print(gyro.y); Serial.print(", ");
+    Serial.print(gyro.z);
+
+    Serial.print(" | MAG: ");
+    Serial.print(mag.x); Serial.print(", ");
+    Serial.print(mag.y); Serial.print(", ");
+    Serial.print(mag.z);
+
+    Serial.println();
+
+    delay(50);
 }

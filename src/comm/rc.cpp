@@ -1,6 +1,10 @@
 #include "rc.h"
 #include <Arduino.h>
 
+#include "../utils/MathUtils.h"
+
+using namespace atabey::utils;
+
 namespace atabey {
     namespace comm {
         volatile int Receiver::rollValue = 0;
@@ -22,35 +26,35 @@ namespace atabey {
         attachInterrupt(digitalPinToInterrupt(YAW_PIN), yawISR, CHANGE);
         }
 
-        int Receiver::getRoll() {
-        return map(rollValue, 945, 1975, -100, 100);
+        int16_t Receiver::getRoll() {
+            return map(rollValue, 945, 1975, -100, 100);
         }
 
-        int Receiver::getPitch() {
-        return map(pitchValue, 945, 1950, -100, 100);
+        int16_t Receiver::getPitch() {
+            return map(pitchValue, 945, 1950, -100, 100);
         }
 
-        int Receiver::getThrottle() {
-        return map(throttleValue, 950, 1990, 0, 100);
+        int16_t Receiver::getYaw() { 
+            return map(yawValue, 970, 1965, -100, 100); 
         }
 
-        int Receiver::getYaw() {
-        return map(yawValue, 970, 1965, -100, 100);
+        int16_t Receiver::getThrottle() {
+            return map(throttleValue, 950, 1990, 0, 100);
         }
 
-        int Receiver::getRawRoll() {
+        int16_t Receiver::getRawRoll() {
         return rollValue;
         }
 
-        int Receiver::getRawPitch() {
+        int16_t Receiver::getRawPitch() {
         return pitchValue;
         }
 
-        int Receiver::getRawThrottle() {
+        int16_t Receiver::getRawThrottle() {
         return throttleValue;
         }
 
-        int Receiver::getRawYaw() {
+        int16_t Receiver::getRawYaw() {
         return yawValue;
         }
 

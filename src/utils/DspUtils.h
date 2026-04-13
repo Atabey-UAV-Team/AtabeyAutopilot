@@ -39,5 +39,13 @@ namespace atabey {
             };
         };
 
+        inline float normalizeSignal(int value, int minVal, int maxVal) {
+            return (float)(value - minVal) / (maxVal - minVal) * 2.0f - 1.0f;
+        }
+
+        inline float normalizeThrottle(int value, int minVal, int maxVal) {
+            return (float)(value - minVal) / (maxVal - minVal);
+        }
+
     }
 }

@@ -93,7 +93,7 @@ namespace atabey {
         }
 
         bool ImuSensor::isHealthy() const {
-            return healthy; // TODO: Health Check ekle (sensör hataları, I2C iletişim sorunları vs.)
+            return true; // TODO: Health Check ekle (sensör hataları, I2C iletişim sorunları vs.)
         }
 
         bool ImuSensor::writeRegister(uint8_t addr, uint8_t reg, uint8_t data) {

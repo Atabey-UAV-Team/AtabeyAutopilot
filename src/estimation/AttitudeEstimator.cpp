@@ -26,7 +26,13 @@ namespace atabey {
             return true;
         }
 
-        void AttitudeEstimator::update(const ImuSample& sample) {
+        void AttitudeEstimator::update(){
+
+            ImuSample sample;
+            sample.accel = imu->getAccel();
+            sample.gyro = imu->getGyro();
+            sample.mag = imu->getMag();
+
             nowMicros = micros();
             dt = (nowMicros - prevMicros) / 1000000.0f; // Saniyeye dönüştürmek için
             prevMicros = nowMicros;
@@ -34,11 +40,11 @@ namespace atabey {
             if (dt <= 0.0f) { dt = 0.01f; } // dt'nin sıfır veya negatif gelmesi durumunu engelledik
             else if (dt > 0.1f) { dt = 0.1f; }
 
-            pitchAcc = atan2f(-accel.x, sqrtf(accel.y * accel.y + accel.z * accel.z)); // Pitch açısını hesaplamak için akselometre verilerini kullandık
-            rollAcc  = atan2f(accel.y, accel.z); // Roll açısını hesaplamak için akselometre verilerini kullandık
+            pitchAcc = atan2f(-sample.accel.x, sqrtf(sample.accel.y * sample.accel.y + sample.accel.z * sample.accel.z)); // Pitch açısını hesaplamak için akselometre verilerini kullandık
+            rollAcc  = atan2f(sample.accel.y, sample.accel.z); // Roll açısını hesaplamak için akselometre verilerini kullandık
 
             // ===== ROLL KALMAN =====
-            float rollRate = gyro.x - rollBias;
+            float rollRate = sample.gyro.x - rollBias;
             roll += dt * rollRate;
 
             P_roll[0][0] += dt * (dt*P_roll[1][1] - P_roll[0][1] - P_roll[1][0] + Q_angle);
@@ -64,7 +70,7 @@ namespace atabey {
             P_roll[1][1] -= K1 * P01_temp;
 
             // ===== PITCH KALMAN =====
-            float pitchRate = gyro.y - pitchBias;
+            float pitchRate = sample.gyro.y - pitchBias;
             pitch += dt * pitchRate;
 
             P_pitch[0][0] += dt * (dt*P_pitch[1][1] - P_pitch[0][1] - P_pitch[1][0] + Q_angle);
@@ -97,7 +103,7 @@ namespace atabey {
 
             float yawMag = atan2f(-magY, magX);
 
-            yaw = lerp(yawMag, yaw + gyro.z * dt, 0.98f);
+            yaw = lerp(yawMag, yaw + sample.gyro.z * dt, 0.98f);
 
             // Açıları -180..180 aralığında tutar
             roll  = wrapPi(roll);

@@ -49,7 +49,7 @@ namespace atabey {
                 AttitudeEstimator(ImuSensor& imuSensor);
 
                 bool init() override;
-                void update(const ImuSample& sample) override;
+                void update() override;
                 Vec3f getAttitude() const;
                 Vec3f getRates() const;
         };
