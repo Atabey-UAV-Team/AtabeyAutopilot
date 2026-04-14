@@ -6,6 +6,7 @@ simTime   = 300;       % Saniye
 % Oluşturulmuş Trim Dosyasını Yükle
 load("ATABEY_trim_solution.mat")
 x0 = XStar;
+% x0 = [15;0;0;0;0;0;0;0;0];
 u  = UStar;
 
 % Kontrol Sınırları
