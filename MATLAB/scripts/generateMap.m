@@ -3,7 +3,7 @@ function generateMap()
 clc; close all;
 
 %% Harita Parametreleri
-mapSize = 200;           % Harita Tek Doğrultuda Uzunluk
+mapSize = 500;           % Harita Tek Doğrultuda Uzunluk
 resolution = 10;         % Grid Boyutu
 
 xGrid = 0:resolution:mapSize;
