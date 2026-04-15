@@ -12,9 +12,13 @@ u  = UStar;
 % Kontrol Sınırları
 uServoMax = 20*pi/180;
 
+% Harita Oluşturulması
+addpath("scripts");
+generateMap();
+
 %% Simülasyon
 clc
-endResults = sim("ATABEY_sistem_modeli.slx")
+endResults = sim("ATABEY_Model_sim.slx")
 
 %% Plot
 clc; close all;
