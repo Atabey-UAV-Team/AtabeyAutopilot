@@ -1,22 +1,22 @@
 #pragma once
 
-#include <Arduino.h>
+#include "Arduino.h"
 #include "ISensor.h"
 #include "../../utils/MathUtils.h"
 
- using namespace atabey::utils;
+using namespace atabey::utils;
+using namespace atabey::drivers;
 
 namespace atabey {
     namespace drivers {
 
-        class ImuSensor : public atabey::drivers::ISensor {
+        class ImuSensor : public ISensor {
             private:
-                Vec3f accel = Vec3f(0, 0, 0); // Akselometre data
-                Vec3f gyro = Vec3f(0, 0, 0);  // Jiroskop data
-                Vec3f mag = Vec3f(0, 0, 0);   // Manyetometre data
+                float ax, ay, az; // Akselometre data
+                float gx, gy, gz; // Jiroskop data
+                float mx, my, mz; // Manyetometre data
 
-                Vec3f gyroBias = Vec3f(0, 0, 0); // Jiroskop bias'ı (kalibrasyon sonrası)
-                Vec3f gyroCalibration = Vec3f(0, 0, 0); // Kalibrasyon sırasında toplanan jiroskop verilerinin ortalaması
+                float gyroBiasX, gyroBiasY, gyroBiasZ; // Jiroskop bias'ı (kalibrasyon sonrası)
 
                 bool healthy;
             public:
@@ -27,7 +27,6 @@ namespace atabey {
                 bool calibrate();
 
                 bool isHealthy() const override;
-                bool isStable() const; // Jiroskopun stabil olup olmadığını kontrol eder (kalibrasyon için)
                 
                 bool writeRegister(uint8_t addr, uint8_t reg, uint8_t data);
                 bool readBytes(uint8_t addr, uint8_t reg, uint8_t* buffer, uint8_t len);
