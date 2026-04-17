@@ -1,14 +1,22 @@
+% MATLAB Klasörü Altında Çalıştırın
 clc; clear; close all
+
+simTime = 180;
+fcPosRef = [100000 100000 1000];
+fcVelRef = [100 10 10];
+
+addpath("Scriptler");
+addpath("Güdüm");
 
 % Hedeflenen uçuş hızı
 V_target = 20;
 
-%%
+%% Flight Controller Katsayıları
 Ki_Ye = 0.0025;
 Kp_Ye = 0.18;
 Kd_Ye = 0.6;
 
-Kp_Ze = -.03;
+Kp_Ze = -0.3;
 Ki_Ze = -0.0001;
 Kd_Ze = -0.05;
 
@@ -28,6 +36,7 @@ Kp_theta = -0.8;
 
 Kq_eta = -0.28;
 Ktheta_eta = -1;
+
 Kphi_xi = -0.2;
 
 q_trim = 0;
@@ -36,7 +45,8 @@ theta_trim = 10;
 xi_trim = 0;
 chi_trim = 0;
 tau_trim = 0;
-%%
+
+%% Trim
 
 % Kayıt dosyası adı. Hazır çözüm varsa onun üzerinden tekrar çözülür.
 mat_file = 'ATABEY_trim_solution.mat';
