@@ -3,6 +3,41 @@ clc; clear; close all
 % Hedeflenen uçuş hızı
 V_target = 20;
 
+%%
+Ki_Ye = 0.0025;
+Kp_Ye = 0.18;
+Kd_Ye = 0.6;
+
+Kp_Ze = -.03;
+Ki_Ze = -0.0001;
+Kd_Ze = -0.05;
+
+Kp_psi = 0.7;
+Ki_psi = 0.001;
+
+Kp_u = 0.5;
+Ki_u = 0.15;
+
+Kp_Xe = 0.125;
+
+Kp_phi = -0.2;
+Ki_phi = -0.1;
+
+Ki_theta = -0.8;
+Kp_theta = -0.8;
+
+Kq_eta = -0.28;
+Ktheta_eta = -1;
+Kphi_xi = -0.2;
+
+q_trim = 0;
+eta_trim = 0.1;
+theta_trim = 10;
+xi_trim = 0;
+chi_trim = 0;
+tau_trim = 0;
+%%
+
 % Kayıt dosyası adı. Hazır çözüm varsa onun üzerinden tekrar çözülür.
 mat_file = 'ATABEY_trim_solution.mat';
 
