@@ -1,4 +1,3 @@
-% MATLAB Klasörü Altında Çalıştırın
 clc; clear; close all
 
 simTime = 180;
@@ -41,7 +40,7 @@ Kphi_xi = -0.2;
 
 q_trim = 0;
 eta_trim = 0.1;
-theta_trim = 10;
+theta_trim = 0;
 xi_trim = 0;
 chi_trim = 0;
 tau_trim = 0;
