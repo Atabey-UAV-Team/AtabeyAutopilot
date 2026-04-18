@@ -41,12 +41,14 @@ void loop() {
 //  Serial.print("\t");
 //  Serial.print("\n");
   
-  Serial.write(255);
+  Serial.write("S");
 
   for (int i = 0; i < 3; i++) {
     Serial.write(lowByte(dizi[i]));
     Serial.write(highByte(dizi[i]));
   }
+
+  Serial.write("\n");
   
   delay(10);
 }

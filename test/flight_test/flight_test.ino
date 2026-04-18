@@ -1,205 +1,294 @@
 #include <AtabeyAutopilot.h>
 
 // =============================================================
-// MANUAL FLIGHT TEST (Flying Wing / Elevon)
-// Repo modules used (dev branch):
-// - atabey::comm::Receiver            : RC PWM input (roll/pitch/throttle)
-// - atabey::drivers::Timer4ServoDriver: Hardware PWM outputs (channels 0..2)
-// - atabey::drivers::ServoPWM         : 2-channel surface output (perfect for elevons)
+// MANUAL FLIGHT TEST (Flying Wing / Elevon Mix) - SAFETY FOCUSED
 //
-// No PID, no stabilization, no filtering.
+// Uses ONLY existing dev-branch modules:
+//  - atabey::comm::Receiver
+//  - atabey::drivers::ServoPWM
+//  - atabey::drivers::Timer4ServoDriver
+//
+// NO PID, NO stabilization, NO filtering.
 // =============================================================
 
 using namespace atabey::comm;
 using namespace atabey::drivers;
-using namespace atabey::utils;
 
-// -------------------- Instances --------------------
+// -------------------------------------------------------------
+// Direction configuration (VERY IMPORTANT)
+// Flip signs here if surfaces respond in the wrong direction.
+// -------------------------------------------------------------
+#define ROLL_DIR  1.0f
+#define PITCH_DIR 1.0f
+
+// -------------------------------------------------------------
+// Hardware mapping (Timer4ServoDriver channels):
+//  channel 0 -> OC4A (pin 6)
+//  channel 1 -> OC4B (pin 7)
+//  channel 2 -> OC4C (pin 8)
+//
+// Elevons use ch0/ch1 via ServoPWM.
+// Throttle (ESC) uses ch2 directly.
+// -------------------------------------------------------------
+#define THROTTLE_OUT_CH 2
+
+// -------------------------------------------------------------
+// Safety timings
+// -------------------------------------------------------------
+#define SAFE_STARTUP_HOLD_MS 3000 // hold throttle cut for 3s after boot
+#define ARM_STABLE_MS 2000 // throttle low stable time required to arm
+#define FAILSAFE_TIMEOUT_US 100000 // 100 ms max since last valid RC
+
+// -------------------------------------------------------------
+// RC validity (raw PWM microseconds) heuristic
+// Receiver has no explicit signal-lost API; we validate raw pulses.
+// Adjust limits to match your receiver if needed.
+// -------------------------------------------------------------
+#define RX_RAW_MIN_US 900
+#define RX_RAW_MAX_US 2100
+
+// Arming threshold: throttle must be < 5%
+#define ARM_THROTTLE_MAX 0.05f
+
+// Debug output rate
+#define DEBUG_PERIOD_MS 100
+
+// -------------------------------------------------------------
+// Instances
+// -------------------------------------------------------------
 Receiver receiver;
 Timer4ServoDriver pwmDriver;
 
-// ServoPWM is a 2-channel helper; we use it for LEFT and RIGHT elevon outputs.
-// Channel mapping inside Timer4ServoDriver (see ServoDriver.h):
-//   channel 0 -> OC4A (pin 6)
-//   channel 1 -> OC4B (pin 7)
-//   channel 2 -> OC4C (pin 8)
+// ServoPWM is a 2-channel helper; in this flying-wing setup:
+// ch0 = LEFT elevon, ch1 = RIGHT elevon
 ServoPWM<Timer4ServoDriver> elevons(pwmDriver, 0, 1);
 
-// Throttle output uses Timer4ServoDriver directly (pick an available channel).
-// NOTE: Timer4ServoDriver only has channels 0..2. Since elevons already use 0 and 1,
-// we use channel 2 for throttle (ESC).
-#define THROTTLE_OUT_CH 2
+// -------------------------------------------------------------
+// State
+// -------------------------------------------------------------
+static bool armed = false;
+static bool failsafe = true;
 
-// -------------------- Safety / RC signal loss heuristic --------------------
-// Receiver has no explicit "signal lost" API, so we detect loss by:
-// - raw PWM being out of plausible range, OR
-// - no valid raw updates for a timeout window
-#define RX_RAW_MIN_US 900
-#define RX_RAW_MAX_US 2100
-#define RX_TIMEOUT_US 250000 // 250 ms
+static uint32_t bootMs = 0;
+static int32_t nowMs = 0;
+static int32_t nowUs = 0;
+bool inStartupHold;
 
+int16_t rollPct, pitchPct, throttlePct;
+uint16_t rollUs, pitchUs, throttleUs;
+float roll, pitch, throttle;
+
+// "Last time we saw a valid RC frame" (raw pulses plausible)
 static uint32_t lastRxOkMicros = 0;
 
-// Debug print period (optional)
-#define DEBUG_PERIOD_MS 100
+// For arming: time when throttle first became "low enough"
+static uint32_t throttleLowSinceMs = 0;
 
-// -------------------- Helpers (no dynamic allocation) --------------------
+// -------------------------------------------------------------
+// Helpers (no dynamic allocation)
+// -------------------------------------------------------------
+static inline float clampf(float v, float lo, float hi) {
+  if (v < lo) return lo;
+  if (v > hi) return hi;
+  return v;
+}
 
 static inline bool rawLooksValid(uint16_t us) {
   return (us >= RX_RAW_MIN_US && us <= RX_RAW_MAX_US);
 }
 
-// RC inputs come from Receiver as:
-// - roll, pitch : [-100 .. 100]
-// - throttle    : [0 .. 100]
 static inline float normBipolarFromPercent(int16_t vPct) {
+  // [-100..100] -> [-1..1]
   float v = (float)vPct / 100.0f;
-  return clamp(v, -1.0f, 1.0f);
+  return clampf(v, -1.0f, 1.0f);
 }
 
 static inline float normThrottleFromPercent(int16_t vPct) {
+  // [0..100] -> [0..1]
   float v = (float)vPct / 100.0f;
-  return clamp(v, 0.0f, 1.0f);
+  return clampf(v, 0.0f, 1.0f);
 }
 
-// Convert normalized surface command [-1..1] into elevon angle in degrees [-20..20].
-// ServoPWM internally clamps to ELEVON_MIN_ANGLE/ELEVON_MAX_ANGLE (see servo.h/servo.tpp).
 static inline float normToElevonAngleDeg(float x) {
-  x = clamp(x, -1.0f, 1.0f);
+  // [-1..1] -> [-20..20] degrees
+  x = clampf(x, -1.0f, 1.0f);
   return x * 20.0f;
 }
 
-// Convert throttle [0..1] to ESC microseconds [1000..2000]
 static inline uint16_t throttleToUs(float t) {
-  t = clamp(t, 0.0f, 1.0f);
+  // [0..1] -> [1000..2000] microseconds
+  t = clampf(t, 0.0f, 1.0f);
   return (uint16_t)(1000u + (uint16_t)(t * 1000.0f));
+}
+
+static inline void applySafeOutputs() {
+  // Immediately force safe outputs:
+  // - elevons neutral
+  // - throttle cut
+  elevons.setPosition(0.0f, 0.0f);
+  pwmDriver.write_us(THROTTLE_OUT_CH, 1000);
 }
 
 void setup() {
   Serial.begin(115200);
   delay(50);
 
-  Serial.println("=== Atabey MANUAL FLIGHT TEST (Flying Wing / Elevon Mix) ===");
+  Serial.println("=== SAFE MANUAL FLIGHT TEST (Flying Wing / Elevon) ===");
+  Serial.println("Booting DISARMED. Throttle is held at 1000us during startup hold.");
 
-  // Initialize RC input (interrupt-based in Receiver)
   receiver.init();
 
-  // Initialize PWM outputs for elevons (this calls pwmDriver.init() and sets trim)
+  // ServoPWM::init() calls pwmDriver.init() and disarms ch0/ch1 to trim.
   elevons.init();
 
-  // Initialize throttle output to safe low (ESC disarm)
-  pwmDriver.write_us(THROTTLE_OUT_CH, 1000);
-
+  bootMs = millis();
   lastRxOkMicros = micros();
 
-  Serial.println("Init done.");
+  armed = false;
+  failsafe = true;
+  throttleLowSinceMs = 0;
+
+  // Safe startup: enforce throttle cut + neutral elevons immediately.
+  applySafeOutputs();
 }
 
 void loop() {
-  // --------------------
-  // 1) Read RC inputs
-  // --------------------
-  const int16_t rollPct     = receiver.getRoll();      // [-100..100]
-  const int16_t pitchPct    = receiver.getPitch();     // [-100..100]
-  const int16_t throttlePct = receiver.getThrottle();  // [0..100]
+  nowMs = millis();
+  nowUs = micros();
 
-  // Also read raw pulse widths for signal-loss detection
-  const uint16_t rollUs     = (uint16_t)receiver.getRawRoll();
-  const uint16_t pitchUs    = (uint16_t)receiver.getRawPitch();
-  const uint16_t throttleUs = (uint16_t)receiver.getRawThrottle();
+  // -----------------------------------------------------------
+  // 1) Read RC (scaled) + raw
+  // -----------------------------------------------------------
+  rollPct     = receiver.getRoll();      // [-100..100]
+  pitchPct    = receiver.getPitch();     // [-100..100]
+  throttlePct = receiver.getThrottle();  // [0..100]
 
+  rollUs     = (uint16_t)receiver.getRawRoll();
+  pitchUs    = (uint16_t)receiver.getRawPitch();
+  throttleUs = (uint16_t)receiver.getRawThrottle();
+
+  // -----------------------------------------------------------
+  // 2) Validate signal (raw PWM plausibility + timeout)
+  // -----------------------------------------------------------
   const bool rawValid =
       rawLooksValid(rollUs) &&
       rawLooksValid(pitchUs) &&
       rawLooksValid(throttleUs);
 
   if (rawValid) {
-    lastRxOkMicros = micros();
+    lastRxOkMicros = nowUs;
   }
 
-  const bool signalLost = ((uint32_t)(micros() - lastRxOkMicros) > RX_TIMEOUT_US);
+  // Rollover-safe unsigned subtraction
+  const bool timedOut = ((uint32_t)(nowUs - lastRxOkMicros) > FAILSAFE_TIMEOUT_US);
 
-  // --------------------
-  // 2) Normalize inputs
-  // --------------------
-  // roll, pitch -> [-1..1]
-  // throttle    -> [0..1]
-  float roll     = normBipolarFromPercent(rollPct);
-  float pitch    = normBipolarFromPercent(pitchPct);
-  float throttle = normThrottleFromPercent(throttlePct);
+  failsafe = (!rawValid) || timedOut;
 
-  // --------------------
-  // 3) SAFETY: RC lost -> neutral + throttle cut
-  // --------------------
-  if (signalLost) {
-    roll = 0.0f;
-    pitch = 0.0f;
-    throttle = 0.0f;
+  // -----------------------------------------------------------
+  // 3) Normalize inputs
+  // -----------------------------------------------------------
+  roll     = normBipolarFromPercent(rollPct);        // [-1..1]
+  pitch    = normBipolarFromPercent(pitchPct);       // [-1..1]
+  throttle = normThrottleFromPercent(throttlePct);   // [0..1]
+
+  // -----------------------------------------------------------
+  // 4) Apply direction config BEFORE mixing
+  // -----------------------------------------------------------
+  roll  *= ROLL_DIR;
+  pitch *= PITCH_DIR;
+
+  // -----------------------------------------------------------
+  // 5) Failsafe action (MANDATORY):
+  // If failsafe -> immediately DISARM and force safe outputs.
+  // -----------------------------------------------------------
+  if (failsafe) {
+    armed = false;
+    throttleLowSinceMs = 0;
+    applySafeOutputs();
+  } else {
+    // ---------------------------------------------------------
+    // 6) Safe startup hold (MANDATORY):
+    // Hold throttle cut and prevent arming for first 3 seconds.
+    // ---------------------------------------------------------
+    inStartupHold = (uint32_t)(nowMs - bootMs) < SAFE_STARTUP_HOLD_MS;
+
+    if (inStartupHold) {
+      armed = false;
+      throttleLowSinceMs = 0;
+      applySafeOutputs();
+    } else {
+      // -------------------------------------------------------
+      // 7) Arming logic (MANDATORY):
+      // Start DISARMED.
+      // Arm ONLY if throttle < 5% and stays stable for >= 2s.
+      // -------------------------------------------------------
+      if (!armed) {
+        if (throttle < ARM_THROTTLE_MAX) {
+          if (throttleLowSinceMs == 0) {
+            throttleLowSinceMs = nowMs;
+          } else if ((uint32_t)(nowMs - throttleLowSinceMs) >= ARM_STABLE_MS) {
+            armed = true;
+          }
+        } else {
+          throttleLowSinceMs = 0;
+        }
+      }
+
+      // -------------------------------------------------------
+      // 8) Elevon mixing (MANDATORY, exact equations):
+      //
+      // Elevon mixing combines:
+      //  - Elevator (pitch): both surfaces move same direction
+      //  - Aileron (roll) : surfaces move opposite directions
+      //
+      // EXACT mix:
+      //   left  = pitch + roll
+      //   right = pitch - roll
+      // -------------------------------------------------------
+      float left  = pitch + roll;
+      float right = pitch - roll;
+
+      // Clamp mixed commands to [-1..1]
+      left  = clampf(left,  -1.0f, 1.0f);
+      right = clampf(right, -1.0f, 1.0f);
+
+      // Convert to angle range [-20..20] degrees
+      const float leftDeg  = normToElevonAngleDeg(left);
+      const float rightDeg = normToElevonAngleDeg(right);
+
+      // Send to elevon outputs (ServoPWM: ch0=left, ch1=right)
+      elevons.setPosition(leftDeg, rightDeg);
+
+      // -------------------------------------------------------
+      // 9) Throttle output:
+      // Only apply throttle when ARMED, otherwise always 1000us.
+      // -------------------------------------------------------
+      const uint16_t thrUs = armed ? throttleToUs(throttle) : 1000;
+      pwmDriver.write_us(THROTTLE_OUT_CH, thrUs);
+    }
   }
 
-  // =============================================================
-  // 4) ELEVON MIXING (CORE CONCEPT)
-  //
-  // Flying wing aircraft typically have no separate aileron/elevator.
-  // Instead, each wing has an "elevon" surface that combines:
-  // - Elevator (pitch control): both elevons move the same direction
-  // - Aileron (roll control) : elevons move opposite directions
-  //
-  // Mix formula (normalized commands):
-  //   left_elevon  = elevator + aileron
-  //   right_elevon = elevator - aileron
-  //
-  // Here:
-  //   elevator = pitch
-  //   aileron  = roll
-  // =============================================================
-  float leftElevon  = pitch + roll;
-  float rightElevon = pitch - roll;
-
-  // Clamp mixed commands to valid surface range [-1..1]
-  leftElevon  = clamp(leftElevon,  -1.0f, 1.0f);
-  rightElevon = clamp(rightElevon, -1.0f, 1.0f);
-
-  // Convert surface commands to angle range [-20..20] degrees
-  const float leftAngleDeg  = normToElevonAngleDeg(leftElevon);
-  const float rightAngleDeg = normToElevonAngleDeg(rightElevon);
-
-  // --------------------
-  // 5) Write outputs
-  // --------------------
-  // Elevons via ServoPWM:
-  //   left  -> channel 0
-  //   right -> channel 1
-  elevons.setPosition(leftAngleDeg, rightAngleDeg);
-
-  // Throttle via Timer4ServoDriver directly in microseconds [1000..2000]
-  const uint16_t throttleOutUs = throttleToUs(throttle);
-  pwmDriver.write_us(THROTTLE_OUT_CH, throttleOutUs);
-
-  // --------------------
-  // 6) Optional debug output
-  // --------------------
+  // -----------------------------------------------------------
+  // 10) Debug output (rate-limited)
+  // -----------------------------------------------------------
   static uint32_t lastDbgMs = 0;
-  const uint32_t nowMs = millis();
   if ((uint32_t)(nowMs - lastDbgMs) >= DEBUG_PERIOD_MS) {
     lastDbgMs = nowMs;
 
-    Serial.print(signalLost ? "RX LOST" : "RX OK  ");
-    Serial.print(" | roll=");
+    Serial.print("armed=");
+    Serial.print(armed ? "1" : "0");
+    Serial.print(" failsafe=");
+    Serial.print(failsafe ? "1" : "0");
+
+    Serial.print(" roll=");
     Serial.print(roll, 2);
     Serial.print(" pitch=");
     Serial.print(pitch, 2);
     Serial.print(" thr=");
     Serial.print(throttle, 2);
 
-    Serial.print(" | L=");
-    Serial.print(leftElevon, 2);
-    Serial.print(" R=");
-    Serial.print(rightElevon, 2);
-
-    Serial.print(" | thr_us=");
-    Serial.println(throttleOutUs);
+    Serial.println();
   }
 
-  // Keep loop real-time friendly: no delay().
+  // No delay() in loop: keep timing responsive.
 }
