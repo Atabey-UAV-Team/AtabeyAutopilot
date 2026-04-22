@@ -1,19 +1,8 @@
-%% Simülasyon Parametreleri
-clc; clear; close all;
-
-simTime   = 300;       % Saniye
-
-% Oluşturulmuş Trim Dosyasını Yükle
-load("ATABEY_trim_solution.mat")
-x0 = XStar;
-u  = UStar;
-
-% Kontrol Sınırları
-uServoMax = 20*pi/180;
-
 %% Simülasyon
-clc
-endResults = sim("ATABEY_sistem_modeli.slx")
+clc, close all
+
+uServoMax = 20*pi/180;
+endResults = out;
 
 %% Plot
 clc; close all;

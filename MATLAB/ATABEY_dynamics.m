@@ -16,13 +16,13 @@ Xac = 0.206; Yac = 0; Zac = 0.03;    % Body Frame Aerodinamik Center Pozisyonu (
 
 % Motor Değerleri
 Umax = 30;                           % Maksimum Motor İtkisi (N)
-Xapt = 0.18; Yapt = 0; Zapt = 0;     % Body Frame Motor İtki Kuvvetinin Konumu(m)
+Xapt = 0.18; Yapt = 0; Zapt = 0;     % Body Frame Motor İtki Kuvvetinin Konumu (m)
 
 % Çevresel Sabitler
 rho = 1.225;                         % Hava Yoğunluğu
 g   = 9.81;                          % Yerçekimi İvmesi (m/s^2)
 
-%-----------------STATE VE GİRDİ TANIMLARI----------------------
+%------------------STATE VE GİRDİ TANIMLARI----------------------
 x1 = X(1); x2 = X(2); x3 = X(3);     % u, v, w (m/s)
 x4 = X(4); x5 = X(5); x6 = X(6);     % p, q, r (rad/s)
 x7 = X(7); x8 = X(8); x9 = X(9);     % phi, theta, psi (rad)
@@ -129,7 +129,7 @@ Ib = [ 0.10421065  -0.00104788   0.00123247;
       -0.00104788   0.01710749  -0.00038369;
        0.00123247  -0.00038369   0.11944482];
 
-%--------------------------DURUM TÜREVLERİ---------------------
+%-------------------------DURUM TÜREVLERİ-----------------------
 % Body Frame Toplam Kuvvet
 F_b = Fg_b + FE_b + FA_b;
 

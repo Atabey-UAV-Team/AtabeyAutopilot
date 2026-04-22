@@ -61,8 +61,8 @@ namespace atabey {
             };
         }
 
-        inline float normalize(float x, float min, float max) {
-            return (x - min) / (max - min);
+        inline float normalize(float value, float minVal, float maxVal) {
+            return (value - minVal) / (maxVal - minVal);
         }
 
         inline Vec3f normalize(const Vec3f& v) {

@@ -10,12 +10,6 @@ using namespace atabey::utils;
 namespace atabey {
     namespace estimation {
 
-        struct ImuSample {
-            Vec3f accel;
-            Vec3f gyro;
-            Vec3f mag;
-        };
-
         class AttitudeEstimator : public IEstimator {
             private:
                 ImuSensor* imu;
@@ -27,29 +21,32 @@ namespace atabey {
                 float pitchAcc{0};
                 float rollAcc{0};
 
-                float rollBias;
-                float pitchBias;
-
+                float rollBias{0};
+                float pitchBias{0};
+                float yawBias{0};
+                float pitchOffset = 0.0f; 
+                float rollOffset  = 0.0f;
                 float P_roll[2][2];
                 float P_pitch[2][2];
+                float P_yaw[2][2];
 
-                float Q_angle = 0.001f;
-                float Q_bias  = 0.003f;
-                float R_measure = 0.03f;
+                float magDeclination{0.0f};
 
-                float normalized{0};
-                float dt;
+                float Q_angle      = 0.001f;
+                float Q_bias       = 0.003f;
+                float R_measure    = 0.03f;
+                float R_measure_yaw = 0.3f;
+
+                float dt{0.01f};
                 uint32_t prevMicros{0};
                 uint32_t nowMicros{0};
-
-                float sampleSum{0};
-                float sample{0};
 
             public:
                 AttitudeEstimator(ImuSensor& imuSensor);
 
                 bool init() override;
-                void update(const ImuSample& sample) override;
+                void update() override;
+                void setMagDeclination(float decl) { magDeclination = decl; }  
                 Vec3f getAttitude() const;
                 Vec3f getRates() const;
         };

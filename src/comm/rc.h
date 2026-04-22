@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #define ROLL_PIN 2
 #define PITCH_PIN 3
 #define THROTTLE_PIN 18
@@ -31,15 +33,15 @@ namespace atabey {
                 Receiver();
                 void init();
                 
-                int getRoll();
-                int getPitch();
-                int getThrottle();
-                int getYaw();
+                int16_t getRoll();
+                int16_t getPitch();
+                int16_t getThrottle();
+                int16_t getYaw();
                 
-                int getRawRoll();
-                int getRawPitch();
-                int getRawThrottle();
-                int getRawYaw();
+                int16_t getRawRoll();
+                int16_t getRawPitch();
+                int16_t getRawThrottle();
+                int16_t getRawYaw();
         };
     }
 }
