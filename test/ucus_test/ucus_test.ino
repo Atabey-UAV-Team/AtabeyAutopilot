@@ -6,13 +6,13 @@
 // LEFT ELEVON     D6 (OC4A)      Servo Left Elevon
 // RIGHT ELEVON    D7 (OC4B)      Servo Right Elevon
 // THROTTLE (ESC)  D8 (OC4C)      ESC Signal
-// ROLL INPUT      <fill if known>
-// PITCH INPUT     <fill if known>
-// THROTTLE INPUT  <fill if known>
+// ROLL INPUT      D2             Roll Signal
+// PITCH INPUT     D3             Pitch Signal
+// THROTTLE INPUT  D18            Throttle Signal
 // =============================================================
 
 #include <AtabeyAutopilot.h>
-#include <math.h>   // fabs() for disarm-gesture pitch check
+#include <math.h>   // fabsf() for disarm-gesture pitch check
 
 // =============================================================
 // ucus_test.ino
