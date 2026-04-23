@@ -1,3 +1,16 @@
+// =============================================================
+// PIN WIRING TABLE
+// =============================================================
+// Function        MCU Pin        Hardware
+// -------------------------------------------------------------
+// LEFT ELEVON     D6 (OC4A)      Servo Left Elevon
+// RIGHT ELEVON    D7 (OC4B)      Servo Right Elevon
+// THROTTLE (ESC)  D8 (OC4C)      ESC Signal
+// ROLL INPUT      <fill if known>
+// PITCH INPUT     <fill if known>
+// THROTTLE INPUT  <fill if known>
+// =============================================================
+
 #include <AtabeyAutopilot.h>
 #include <math.h>   // fabs() for disarm-gesture pitch check
 
@@ -86,6 +99,35 @@ static uint32_t disarmStickSince  = 0;   // ms; 0 = gesture not currently held
 #define DISARM_ROLL_THRESHOLD  -0.9f
 
 // -------------------------------------------------------------
+// Loop Working Variables (pre-allocated for safety / determinism)
+// -------------------------------------------------------------
+static uint32_t nowUs          = 0;
+static uint32_t nowMs          = 0;
+
+static int16_t  rollPct        = 0;
+static int16_t  pitchPct       = 0;
+static int16_t  throttlePct    = 0;
+static uint16_t rollUs         = 0;
+static uint16_t pitchUs        = 0;
+static uint16_t throttleUs     = 0;
+
+static bool     rawValid       = false;
+static bool     timedOut       = false;
+
+static float    roll           = 0.0f;
+static float    pitch          = 0.0f;
+static float    throttle       = 0.0f;
+
+static bool     inStartupHold  = false;
+
+static float    left           = 0.0f;
+static float    right          = 0.0f;
+static float    leftDeg        = 0.0f;
+static float    rightDeg       = 0.0f;
+
+static uint16_t thrUs          = 1000;
+
+// -------------------------------------------------------------
 // Helpers (no dynamic allocation, all inline)
 // -------------------------------------------------------------
 static inline float clampf(float v, float lo, float hi) {
@@ -155,7 +197,7 @@ void setup() {
 // loop() - non-blocking, ~150 Hz cadence
 // =============================================================
 void loop() {
-    const uint32_t nowUs = micros();
+    nowUs = micros();
 
     // -------- Rate limit to ~150 Hz (no delay()) --------
     if ((uint32_t)(nowUs - lastLoopUs) < LOOP_PERIOD_US) {
@@ -163,7 +205,7 @@ void loop() {
     }
     lastLoopUs = nowUs;
 
-    const uint32_t nowMs = millis();
+    nowMs = millis();
 
     // -----------------------------------------------------------
     // 1) Read RC: scaled + raw
@@ -173,8 +215,6 @@ void loop() {
     //    plausibility window. Capture a consistent snapshot with
     //    interrupts disabled, then release them immediately.
     // -----------------------------------------------------------
-    int16_t  rollPct, pitchPct, throttlePct;
-    uint16_t rollUs,  pitchUs,  throttleUs;
     noInterrupts();
     rollPct     = receiver.getRoll();        // [-100..100]
     pitchPct    = receiver.getPitch();       // [-100..100]
@@ -187,7 +227,7 @@ void loop() {
     // -----------------------------------------------------------
     // 2) Validate signal: raw-pulse plausibility + >100ms timeout
     // -----------------------------------------------------------
-    const bool rawValid =
+    rawValid =
         rawLooksValid(rollUs) &&
         rawLooksValid(pitchUs) &&
         rawLooksValid(throttleUs);
@@ -195,7 +235,7 @@ void loop() {
     if (rawValid) {
         lastRxOkUs = nowUs;
     }
-    const bool timedOut =
+    timedOut =
         ((uint32_t)(nowUs - lastRxOkUs) > FAILSAFE_TIMEOUT_US);
 
     failsafe = (!rawValid) || timedOut;
@@ -203,9 +243,9 @@ void loop() {
     // -----------------------------------------------------------
     // 3) Normalize inputs
     // -----------------------------------------------------------
-    float roll     = normBipolar(rollPct);       // [-1..1]
-    float pitch    = normBipolar(pitchPct);      // [-1..1]
-    float throttle = normUnipolar(throttlePct);  // [0..1]
+    roll     = normBipolar(rollPct);       // [-1..1]
+    pitch    = normBipolar(pitchPct);      // [-1..1]
+    throttle = normUnipolar(throttlePct);  // [0..1]
 
     // -----------------------------------------------------------
     // 4) Apply direction config BEFORE mixing
@@ -228,7 +268,7 @@ void loop() {
         // -------------------------------------------------------
         // 6) Startup hold: 3s throttle-cut, arming blocked
         // -------------------------------------------------------
-        const bool inStartupHold =
+        inStartupHold =
             ((uint32_t)(nowMs - bootMs) < SAFE_STARTUP_HOLD_MS);
 
         if (inStartupHold) {
@@ -297,21 +337,21 @@ void loop() {
             //    Clamp to [-1,1], convert to [-20,20] deg.
             //    ServoPWM internally maps deg -> 1000..2000 us.
             // ---------------------------------------------------
-            float left  = pitch + roll;
-            float right = pitch - roll;
+            left  = pitch + roll;
+            right = pitch - roll;
 
             left  = clampf(left,  -1.0f, 1.0f);
             right = clampf(right, -1.0f, 1.0f);
 
-            const float leftDeg  = normToElevonDeg(left);
-            const float rightDeg = normToElevonDeg(right);
+            leftDeg  = normToElevonDeg(left);
+            rightDeg = normToElevonDeg(right);
 
             elevons.setPosition(leftDeg, rightDeg);
 
             // ---------------------------------------------------
             // 9) Throttle output: only when ARMED, else 1000us
             // ---------------------------------------------------
-            const uint16_t thrUs = armed ? throttleToUs(throttle) : 1000;
+            thrUs = armed ? throttleToUs(throttle) : 1000;
             pwmDriver.write_us(THROTTLE_OUT_CH, thrUs);
         }
     }
