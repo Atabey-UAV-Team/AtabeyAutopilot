@@ -8,6 +8,7 @@
 #include "core/ParameterStore.h"
 
 #include "control/IController.h"
+#include "control/FlightController.h"
 #include "drivers/sensors/ISensor.h"
 #include "drivers/actuators/ServoDriver.h"
 #include "comm/ICommLink.h"
