@@ -6,13 +6,13 @@
 // LEFT ELEVON     D6 (OC4A)      Servo Left Elevon
 // RIGHT ELEVON    D7 (OC4B)      Servo Right Elevon
 // THROTTLE (ESC)  D8 (OC4C)      ESC Signal
-// ROLL INPUT      <fill if known>
-// PITCH INPUT     <fill if known>
-// THROTTLE INPUT  <fill if known>
+// ROLL INPUT      D2             Roll Signal
+// PITCH INPUT     D3             Pitch Signal
+// THROTTLE INPUT  D18            Throttle Signal
 // =============================================================
 
 #include <AtabeyAutopilot.h>
-#include <math.h>   // fabs() for disarm-gesture pitch check
+#include <math.h>   // fabsf() for disarm-gesture pitch check
 
 // =============================================================
 // ucus_test.ino
@@ -29,6 +29,15 @@
 
 using namespace atabey::comm;
 using namespace atabey::drivers;
+using namespace atabey::control;
+
+// -------------------------------------------------------------
+// Attitude stabilization limits
+// -------------------------------------------------------------
+// RC stick deflection -> max commanded attitude angle (rad). ~20 deg.
+#define MAX_ANGLE        0.35f
+// Must match FlightController::saturationAngle (rad).
+#define SAT_ANGLE        0.3491f
 
 // -------------------------------------------------------------
 // Direction configuration (applied BEFORE mixing).
@@ -76,6 +85,9 @@ Timer4ServoDriver  pwmDriver;
 
 // ch0 = LEFT elevon, ch1 = RIGHT elevon
 ServoPWM<Timer4ServoDriver> elevons(pwmDriver, 0, 1);
+
+// Stabilization: attitude + SAS
+FlightController   fc;
 
 // -------------------------------------------------------------
 // State
@@ -126,6 +138,16 @@ static float    leftDeg        = 0.0f;
 static float    rightDeg       = 0.0f;
 
 static uint16_t thrUs          = 1000;
+
+// Stabilization working buffers (pre-allocated, not on stack in loop)
+static float    theta_d        = 0.0f;
+static float    phi_d          = 0.0f;
+static float    tau_d          = 0.0f;
+static float    attitude_d[3]  = {0.0f, 0.0f, 0.0f};
+static float    demands[3]     = {0.0f, 0.0f, 0.0f};
+static float    controls[4]    = {0.0f, 0.0f, 0.0f, 0.0f};
+static float    pitchCmd       = 0.0f;
+static float    rollCmd        = 0.0f;
 
 // -------------------------------------------------------------
 // Helpers (no dynamic allocation, all inline)
@@ -331,28 +353,57 @@ void loop() {
             }
 
             // ---------------------------------------------------
-            // 8) Elevon mixing (exact per spec)
-            //      left  = pitch + roll
-            //      right = pitch - roll
-            //    Clamp to [-1,1], convert to [-20,20] deg.
-            //    ServoPWM internally maps deg -> 1000..2000 us.
+            // 8) Stabilized control (only when ARMED).
+            //    Not armed -> neutral surfaces + throttle cut.
+            //
+            //    Flow: RC sticks -> desired attitude -> FlightController
+            //          -> normalized elevon cmds -> existing mixing.
             // ---------------------------------------------------
-            left  = pitch + roll;
-            right = pitch - roll;
+            if (!armed) {
+                applySafeOutputs();
+            } else {
+                // RC -> desired attitude (rad) + throttle passthrough
+                theta_d = pitch * MAX_ANGLE;
+                phi_d   = roll  * MAX_ANGLE;
+                tau_d   = throttle;
 
-            left  = clampf(left,  -1.0f, 1.0f);
-            right = clampf(right, -1.0f, 1.0f);
+                // SIMPLIFIED sensor inputs: only attitude angles are fed
+                // from RC-normalized roll/pitch until the real IMU is
+                // integrated. Rates, body velocities, and position = 0.
+                fc.updateSensors(
+                    0.0f, 0.0f, 0.0f,      // PN, PE, h
+                    0.0f, 0.0f, 0.0f,      // u,  v,  w
+                    0.0f, 0.0f, 0.0f,      // p,  q,  r
+                    roll, pitch, 0.0f);    // phi, theta, psi
 
-            leftDeg  = normToElevonDeg(left);
-            rightDeg = normToElevonDeg(right);
+                attitude_d[0] = theta_d;
+                attitude_d[1] = phi_d;
+                attitude_d[2] = tau_d;
 
-            elevons.setPosition(leftDeg, rightDeg);
+                fc.attitudeController(attitude_d, demands);
+                fc.SAS(demands, controls);
 
-            // ---------------------------------------------------
-            // 9) Throttle output: only when ARMED, else 1000us
-            // ---------------------------------------------------
-            thrUs = armed ? throttleToUs(throttle) : 1000;
-            pwmDriver.write_us(THROTTLE_OUT_CH, thrUs);
+                // controls[0]=elevator (pitch), controls[1]=aileron (roll).
+                // Normalize by saturationAngle, clamp hard to [-1,1].
+                pitchCmd = clampf(controls[0] / SAT_ANGLE, -1.0f, 1.0f);
+                rollCmd  = clampf(controls[1] / SAT_ANGLE, -1.0f, 1.0f);
+
+                // ----- EXISTING elevon mixing (unchanged) -----
+                left  = pitchCmd + rollCmd;
+                right = pitchCmd - rollCmd;
+
+                left  = clampf(left,  -1.0f, 1.0f);
+                right = clampf(right, -1.0f, 1.0f);
+
+                leftDeg  = normToElevonDeg(left);
+                rightDeg = normToElevonDeg(right);
+
+                elevons.setPosition(leftDeg, rightDeg);
+
+                // Throttle output only when ARMED.
+                thrUs = throttleToUs(throttle);
+                pwmDriver.write_us(THROTTLE_OUT_CH, thrUs);
+            }
         }
     }
 

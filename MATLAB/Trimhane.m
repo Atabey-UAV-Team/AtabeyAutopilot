@@ -27,11 +27,11 @@ Ki_u = 0.15;
 
 Kp_Xe = 0.125;
 
-Kp_phi = -0.2;
-Ki_phi = -0.1;
+Kp_phi = 0.5;
+Ki_phi = 0.2;
 
-Ki_theta = -0.8;
-Kp_theta = -0.8;
+Ki_theta = 0.01;
+Kp_theta = 0.2;
 
 Kq_eta = -0.28;
 Ktheta_eta = -1;
