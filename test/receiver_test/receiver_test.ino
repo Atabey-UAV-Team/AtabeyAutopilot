@@ -30,23 +30,23 @@ void loop() {
   dizi[1] = roll;
   dizi[2] = throttle;
 
-//  Serial.print("Pitch: ");
-//  Serial.print(pitch);
-//  Serial.print("\t");
-//  Serial.print("Roll: ");
-//  Serial.print(roll);
-//  Serial.print("\t");
-//  Serial.print("Throttle: ");
-//  Serial.print(throttle);
-//  Serial.print("\t");
-//  Serial.print("\n");
+  Serial.print("Pitch: ");
+  Serial.print(pitch);
+  Serial.print("\t");
+  Serial.print("Roll: ");
+  Serial.print(roll);
+  Serial.print("\t");
+  Serial.print("Throttle: ");
+  Serial.print(throttle);
+  Serial.print("\t");
+  Serial.print("\n");
   
-  Serial.write("S");
-
-  for (int i = 0; i < 3; i++) {
-    Serial.write(lowByte(dizi[i]));
-    Serial.write(highByte(dizi[i]));
-  }
+//  Serial.write("S");
+//
+//  for (int i = 0; i < 3; i++) {
+//    Serial.write(lowByte(dizi[i]));
+//    Serial.write(highByte(dizi[i]));
+//  }
 
   Serial.write("\n");
   
