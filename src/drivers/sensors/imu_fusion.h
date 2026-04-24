@@ -2,36 +2,33 @@
 
 #include "mpu6250.h"
 #include "bmm150.h"
+#include "kalman.h"
 
 // ---------------------------------------------------------------------------
-// Standardized autopilot state outputs — all in SI units.
-// Updated exactly once per updateSensors() call at fixed timestep dt = 0.01s.
+// Standardized autopilot state outputs.
+// Updated exactly once per updateSensors() call at fixed timestep dt = 0.01 s.
 // ---------------------------------------------------------------------------
-
-// Position (NED frame, metres). h is Down, positive downward.
-extern float PN, PE, h;
-
-// Velocity (Earth/NED frame, m/s).
-extern float u, v, w;
-
-// Angular rates (body frame, rad/s).
-extern float p, q, r;
 
 // Attitude (Euler angles, rad): roll, pitch, yaw.
 extern float phi, theta, psi;
 
+// Angular rates (body frame, rad/s).
+extern float p, q, r;
+
 // Packed arrays for downstream consumers.
-extern float sensorsPosition[3];    // { PN, PE, h }
-extern float sensorsEarthspeed[3];  // { u, v, w }
-extern float sensorsRates[3];       // { p, q, r }
-extern float sensorsAttitude[3];    // { phi, theta, psi }
+extern float sensorsAttitude[3];   // { phi, theta, psi }
+extern float sensorsRates[3];      // { p, q, r }
 
 // Fixed integration timestep (seconds).
 extern const float dt;
 
-// Initialise sensors + fusion state. Call once before updateSensors().
+// Kalman filter instances (exposed for inspection / parameter tuning).
+extern Kalman1D kalmanRoll;
+extern Kalman1D kalmanPitch;
+
+// Initialise sensors + filter state. Call once before updateSensors().
 bool initSensors();
 
-// Main periodic task: read sensors, run fusion, publish outputs.
+// Main periodic task: read sensors, run Kalman, publish outputs.
 // Must be invoked at 1 / dt Hz (100 Hz) from a deterministic scheduler.
 void updateSensors();
