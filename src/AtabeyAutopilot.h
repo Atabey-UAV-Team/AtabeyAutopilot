@@ -11,6 +11,7 @@
 #include "control/FlightController.h"
 #include "drivers/sensors/ISensor.h"
 #include "drivers/actuators/ServoDriver.h"
+#include "drivers/sensors/imu_fusion.h"
 #include "comm/ICommLink.h"
 #include "estimation/IEstimator.h"
 
