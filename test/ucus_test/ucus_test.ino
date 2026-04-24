@@ -1,29 +1,38 @@
 // =============================================================
 // PIN WIRING TABLE
 // =============================================================
-// Function        MCU Pin        Hardware
+// Function          MCU Pin         Hardware
 // -------------------------------------------------------------
-// LEFT ELEVON     D6 (OC4A)      Servo Left Elevon
-// RIGHT ELEVON    D7 (OC4B)      Servo Right Elevon
-// THROTTLE (ESC)  D8 (OC4C)      ESC Signal
-// ROLL INPUT      D2             Roll Signal
-// PITCH INPUT     D3             Pitch Signal
-// THROTTLE INPUT  D18            Throttle Signal
+// LEFT ELEVON       D6  (OC4A)      Servo Left Elevon
+// RIGHT ELEVON      D7  (OC4B)      Servo Right Elevon
+// THROTTLE (ESC)    D8  (OC4C)      ESC Signal
+// ROLL INPUT        D2              Roll Signal (RC)
+// PITCH INPUT       D3              Pitch Signal (RC)
+// THROTTLE INPUT    D18             Throttle Signal (RC)
+// -------------------------------------------------------------
+// IMU MPU-6250      SDA=D20 SCL=D21 I2C @ 0x68 (Mega)
+// MAG BMM150        SDA=D20 SCL=D21 I2C (shared bus)
+// GPS (DISABLED)    RX1=D19 TX1=D18 Serial1 -- CONFLICTS with
+//                                   RC throttle (D18); not used
+//                                   in this build. See USE_GPS.
 // =============================================================
 
 #include <AtabeyAutopilot.h>
+#include <drivers/sensors/imu_fusion.h>
 #include <math.h>   // fabsf() for disarm-gesture pitch check
 
 // =============================================================
 // ucus_test.ino
 // MANUAL FLIGHT TEST (Flying Wing / Elevon Mix) - SAFETY FOCUSED
 //
-// Uses ONLY existing dev-branch modules:
+// Modules used:
 //   - atabey::comm::Receiver
 //   - atabey::drivers::ServoPWM
 //   - atabey::drivers::Timer4ServoDriver
+//   - drivers/sensors/imu_fusion  (MPU6250 + BMM150 + Kalman +
+//                                  complementary-filter yaw)
 //
-// NO PID, NO stabilization, NO filtering, NO dynamic allocation,
+// NO PID beyond FlightController, NO dynamic allocation,
 // NO blocking delays in the main loop.
 // =============================================================
 
@@ -34,87 +43,91 @@ using namespace atabey::control;
 // -------------------------------------------------------------
 // Attitude stabilization limits
 // -------------------------------------------------------------
-// RC stick deflection -> max commanded attitude angle (rad). ~20 deg.
 #define MAX_ANGLE        0.35f
-// Must match FlightController::saturationAngle (rad).
 #define SAT_ANGLE        0.3491f
 
 // -------------------------------------------------------------
-// Direction configuration (applied BEFORE mixing).
-// Flip signs here if a surface responds in the wrong direction.
+// Direction configuration
 // -------------------------------------------------------------
 #define ROLL_DIR   1.0f
 #define PITCH_DIR  1.0f
 
 // -------------------------------------------------------------
-// Hardware channel mapping (Timer4ServoDriver):
-//   channel 0 -> OC4A (pin 6)  -> LEFT  elevon
-//   channel 1 -> OC4B (pin 7)  -> RIGHT elevon
-//   channel 2 -> OC4C (pin 8)  -> THROTTLE (ESC)
+// Timer4 channel mapping
 // -------------------------------------------------------------
 #define THROTTLE_OUT_CH 2
 
 // -------------------------------------------------------------
 // Safety timings
 // -------------------------------------------------------------
-#define SAFE_STARTUP_HOLD_MS    3000UL   // hold throttle-cut 3s after boot
-#define ARM_STABLE_MS           2000UL   // throttle-low stable duration to arm
-#define FAILSAFE_TIMEOUT_US   100000UL   // >100 ms without valid RC -> failsafe
+#define SAFE_STARTUP_HOLD_MS    3000UL
+#define ARM_STABLE_MS           2000UL
+#define FAILSAFE_TIMEOUT_US   100000UL
 
 // -------------------------------------------------------------
-// RC raw-pulse plausibility window (microseconds).
-// Receiver has no explicit isValid(); we validate raw pulse widths.
+// RC raw-pulse plausibility window (us)
 // -------------------------------------------------------------
 #define RX_RAW_MIN_US  900
 #define RX_RAW_MAX_US  2100
 
-// Arming: throttle must be below 5% (normalized)
 #define ARM_THROTTLE_MAX 0.05f
 
-// Loop rate target: ~150 Hz  (1 / 150 Hz ~= 6666 us)
-#define LOOP_PERIOD_US 6666UL
+// -------------------------------------------------------------
+// Scheduling periods (us). Independent non-blocking schedulers.
+// Control loop 150 Hz; sensor fusion matches imu_fusion dt=0.01s (100 Hz).
+// -------------------------------------------------------------
+#define LOOP_PERIOD_US      6666UL    // ~150 Hz control
+#define SENSOR_PERIOD_US   10000UL    // 100 Hz IMU fusion (dt=0.01s)
 
-// Debug output rate: ~10 Hz
-#define DEBUG_PERIOD_MS 100UL
+#define DEBUG_PERIOD_MS     100UL     // 10 Hz debug print
+
+// GPS currently disabled: Serial1 TX1 (D18) collides with the RC
+// throttle input and gps.init() uses delay(). Re-enable only after
+// the wiring conflict is resolved.
+#define USE_GPS 0
 
 // -------------------------------------------------------------
 // Instances
 // -------------------------------------------------------------
 Receiver           receiver;
 Timer4ServoDriver  pwmDriver;
-
-// ch0 = LEFT elevon, ch1 = RIGHT elevon
 ServoPWM<Timer4ServoDriver> elevons(pwmDriver, 0, 1);
-
-// Stabilization: attitude + SAS
 FlightController   fc;
 
 // -------------------------------------------------------------
 // State
 // -------------------------------------------------------------
-static bool     armed    = false;
-static bool     failsafe = true;
-
-// SAFETY: latch set when failsafe fires while armed. Blocks auto re-arm
-// when RC recovers; requires pilot to raise throttle stick to clear.
+static bool     armed        = false;
+static bool     failsafe     = true;
 static bool     rearmLockout = false;
+static bool     sensorsOk    = false;
 
 static uint32_t bootMs            = 0;
 static uint32_t lastRxOkUs        = 0;
-static uint32_t throttleLowSince  = 0;   // ms; 0 = not currently low
+static uint32_t throttleLowSince  = 0;
 static uint32_t lastLoopUs        = 0;
+static uint32_t lastSensorUs      = 0;
 static uint32_t lastDbgMs         = 0;
 
-// SAFETY: manual stick-disarm gesture (throttle low + full-left roll >= 2s)
-static uint32_t disarmStickSince  = 0;   // ms; 0 = gesture not currently held
+static uint32_t disarmStickSince  = 0;
 #define DISARM_STICK_HOLD_MS   2000UL
 #define DISARM_ROLL_THRESHOLD  -0.9f
 
 // -------------------------------------------------------------
-// Loop Working Variables (pre-allocated for safety / determinism)
+// Loop timing / jitter tracking
+// -------------------------------------------------------------
+static uint32_t loopExecUs   = 0;
+static uint32_t loopExecMin  = 0xFFFFFFFFUL;
+static uint32_t loopExecMax  = 0;
+static uint32_t loopExecAcc  = 0;
+static uint32_t loopExecCnt  = 0;
+
+// -------------------------------------------------------------
+// Loop Working Variables (pre-allocated, static — no stack churn)
 // -------------------------------------------------------------
 static uint32_t nowUs          = 0;
 static uint32_t nowMs          = 0;
+static uint32_t loopStartUs    = 0;
 
 static int16_t  rollPct        = 0;
 static int16_t  pitchPct       = 0;
@@ -139,7 +152,7 @@ static float    rightDeg       = 0.0f;
 
 static uint16_t thrUs          = 1000;
 
-// Stabilization working buffers (pre-allocated, not on stack in loop)
+// Stabilization scratch
 static float    theta_d        = 0.0f;
 static float    phi_d          = 0.0f;
 static float    tau_d          = 0.0f;
@@ -149,8 +162,12 @@ static float    controls[4]    = {0.0f, 0.0f, 0.0f, 0.0f};
 static float    pitchCmd       = 0.0f;
 static float    rollCmd        = 0.0f;
 
+// Sensor snapshot fed to FlightController (consistent within a cycle).
+static float    s_phi   = 0.0f, s_theta = 0.0f, s_psi = 0.0f;
+static float    s_p     = 0.0f, s_q     = 0.0f, s_r   = 0.0f;
+
 // -------------------------------------------------------------
-// Helpers (no dynamic allocation, all inline)
+// Helpers (inline, heap-free)
 // -------------------------------------------------------------
 static inline float clampf(float v, float lo, float hi) {
     if (v < lo) return lo;
@@ -162,31 +179,57 @@ static inline bool rawLooksValid(uint16_t us) {
     return (us >= RX_RAW_MIN_US && us <= RX_RAW_MAX_US);
 }
 
-// [-100..100] -> [-1..1]
 static inline float normBipolar(int16_t pct) {
     return clampf((float)pct / 100.0f, -1.0f, 1.0f);
 }
 
-// [0..100] -> [0..1]
 static inline float normUnipolar(int16_t pct) {
     return clampf((float)pct / 100.0f, 0.0f, 1.0f);
 }
 
-// [-1..1] -> [-20..20] deg
 static inline float normToElevonDeg(float x) {
     return clampf(x, -1.0f, 1.0f) * 20.0f;
 }
 
-// [0..1] -> [1000..2000] us
 static inline uint16_t throttleToUs(float t) {
     t = clampf(t, 0.0f, 1.0f);
     return (uint16_t)(1000.0f + t * 1000.0f);
 }
 
-// Force immediate safe outputs: elevons neutral + throttle cut.
 static inline void applySafeOutputs() {
     elevons.setPosition(0.0f, 0.0f);
     pwmDriver.write_us(THROTTLE_OUT_CH, 1000);
+}
+
+// -------------------------------------------------------------
+// Sensor task: fixed-rate (100 Hz). Reads IMU + MAG, runs Kalman
+// + tilt-compensated yaw complementary filter (alpha=0.98, inside
+// the driver). Publishes globals phi/theta/psi, p/q/r.
+// -------------------------------------------------------------
+static inline void sensorTask() {
+    if (!sensorsOk) return;
+    updateSensors();   // from imu_fusion.h
+}
+
+// -------------------------------------------------------------
+// Control task: reads latest sensor snapshot, feeds FlightController.
+// -------------------------------------------------------------
+static inline void feedFlightController() {
+    // Snapshot — updateSensors() runs in main context (no ISR race),
+    // but keep explicit copies so subsequent FC stages see coherent data.
+    s_phi   = phi;
+    s_theta = theta;
+    s_psi   = psi;
+    s_p     = p;
+    s_q     = q;
+    s_r     = r;
+
+    // PN, PE, h, u, v, w: 0 until GPS / airspeed fusion are wired up.
+    fc.updateSensors(
+        0.0f, 0.0f, 0.0f,        // PN, PE, h
+        0.0f, 0.0f, 0.0f,        // u,  v,  w
+        s_p,  s_q,  s_r,         // p,  q,  r
+        s_phi, s_theta, s_psi);  // phi, theta, psi
 }
 
 // =============================================================
@@ -200,14 +243,21 @@ void setup() {
     Serial.println(F("Startup hold: 3s. Arm requires throttle<5% for 2s."));
 
     receiver.init();
-    elevons.init();   // initializes pwmDriver and trims ch0/ch1
+    elevons.init();
 
-    // Immediately enforce safe outputs during startup hold.
+    // Sensors: initSensors() brings up Wire, MPU6250, BMM150 and
+    // calibrates gyro bias (vehicle MUST be stationary at boot).
+    sensorsOk = initSensors();
+    if (!sensorsOk) {
+        Serial.println(F("SENSOR INIT FAILED -- flying blind; FC fed zeros."));
+    }
+
     applySafeOutputs();
 
     bootMs           = millis();
     lastRxOkUs       = micros();
     lastLoopUs       = micros();
+    lastSensorUs     = micros();
     lastDbgMs        = millis();
     throttleLowSince = 0;
 
@@ -216,38 +266,50 @@ void setup() {
 }
 
 // =============================================================
-// loop() - non-blocking, ~150 Hz cadence
+// loop() - non-blocking; runs sensor @100Hz and control @150Hz
+// on independent schedulers. No delay(), no dynamic allocation.
 // =============================================================
 void loop() {
-    nowUs = micros();
+    loopStartUs = micros();
 
-    // -------- Rate limit to ~150 Hz (no delay()) --------
-    if ((uint32_t)(nowUs - lastLoopUs) < LOOP_PERIOD_US) {
+    // -----------------------------------------------------------
+    // Sensor fusion schedule (100 Hz / 10 ms)
+    //   Fixed-step catch-up: advance lastSensorUs by one period so
+    //   long-term rate stays locked to SENSOR_PERIOD_US regardless
+    //   of jitter in this tick.
+    // -----------------------------------------------------------
+    if ((uint32_t)(loopStartUs - lastSensorUs) >= SENSOR_PERIOD_US) {
+        lastSensorUs += SENSOR_PERIOD_US;
+        sensorTask();
+    }
+
+    // -----------------------------------------------------------
+    // Control schedule (~150 Hz)
+    // -----------------------------------------------------------
+    if ((uint32_t)(loopStartUs - lastLoopUs) < LOOP_PERIOD_US) {
+        // Nothing else to do this tick; return quickly so the sensor
+        // schedule can fire on the next cycle without extra latency.
         return;
     }
-    lastLoopUs = nowUs;
+    lastLoopUs = loopStartUs;
 
+    nowUs = loopStartUs;
     nowMs = millis();
 
     // -----------------------------------------------------------
-    // 1) Read RC: scaled + raw
-    //    SAFETY: Receiver stores pulses in 16-bit volatile ints written
-    //    by ISRs. On 8-bit AVR a main-context read is NOT atomic and may
-    //    be torn mid-write, producing garbage that can slip through the
-    //    plausibility window. Capture a consistent snapshot with
-    //    interrupts disabled, then release them immediately.
+    // 1) Read RC: scaled + raw (atomic snapshot on 8-bit AVR).
     // -----------------------------------------------------------
     noInterrupts();
-    rollPct     = receiver.getRoll();        // [-100..100]
-    pitchPct    = receiver.getPitch();       // [-100..100]
-    throttlePct = receiver.getThrottle();    // [0..100]
+    rollPct     = receiver.getRoll();
+    pitchPct    = receiver.getPitch();
+    throttlePct = receiver.getThrottle();
     rollUs      = (uint16_t)receiver.getRawRoll();
     pitchUs     = (uint16_t)receiver.getRawPitch();
     throttleUs  = (uint16_t)receiver.getRawThrottle();
     interrupts();
 
     // -----------------------------------------------------------
-    // 2) Validate signal: raw-pulse plausibility + >100ms timeout
+    // 2) Validate signal
     // -----------------------------------------------------------
     rawValid =
         rawLooksValid(rollUs) &&
@@ -265,31 +327,26 @@ void loop() {
     // -----------------------------------------------------------
     // 3) Normalize inputs
     // -----------------------------------------------------------
-    roll     = normBipolar(rollPct);       // [-1..1]
-    pitch    = normBipolar(pitchPct);      // [-1..1]
-    throttle = normUnipolar(throttlePct);  // [0..1]
+    roll     = normBipolar(rollPct);
+    pitch    = normBipolar(pitchPct);
+    throttle = normUnipolar(throttlePct);
 
     // -----------------------------------------------------------
-    // 4) Apply direction config BEFORE mixing
+    // 4) Apply direction config
     // -----------------------------------------------------------
     roll  *= ROLL_DIR;
     pitch *= PITCH_DIR;
 
     // -----------------------------------------------------------
-    // 5) FAILSAFE: disarm + safe outputs, skip the rest
+    // 5) FAILSAFE
     // -----------------------------------------------------------
     if (failsafe) {
-        // SAFETY: if we were armed when failsafe fired, latch a lockout so
-        // the aircraft cannot silently re-arm the moment RC recovers.
         if (armed) rearmLockout = true;
         armed            = false;
         throttleLowSince = 0;
         disarmStickSince = 0;
         applySafeOutputs();
     } else {
-        // -------------------------------------------------------
-        // 6) Startup hold: 3s throttle-cut, arming blocked
-        // -------------------------------------------------------
         inStartupHold =
             ((uint32_t)(nowMs - bootMs) < SAFE_STARTUP_HOLD_MS);
 
@@ -299,15 +356,7 @@ void loop() {
             disarmStickSince = 0;
             applySafeOutputs();
         } else {
-            // ---------------------------------------------------
-            // 6b) Manual stick-disarm (runs regardless of armed state).
-            //     Gesture: throttle <5% AND full-left roll (<-0.9)
-            //     held for >=2s -> force disarm. Pilot-intentional,
-            //     so we also reset the arming timer so it cannot
-            //     re-arm immediately on release.
-            // ---------------------------------------------------
-            // SAFETY: also require pitch near neutral so this gesture
-            // cannot be entered accidentally during aggressive maneuvers.
+            // Manual disarm gesture
             if (throttle < ARM_THROTTLE_MAX &&
                 roll     < DISARM_ROLL_THRESHOLD &&
                 fabsf(pitch) < 0.2f) {
@@ -316,25 +365,16 @@ void loop() {
                 } else if ((uint32_t)(nowMs - disarmStickSince)
                            >= DISARM_STICK_HOLD_MS) {
                     armed            = false;
-                    rearmLockout     = false;   // pilot-initiated: allow re-arm
-                    throttleLowSince = 0;       // block instant re-arm on release
-
+                    rearmLockout     = false;
+                    throttleLowSince = 0;
                     applySafeOutputs();
                 }
             } else {
                 disarmStickSince = 0;
             }
 
-            // ---------------------------------------------------
-            // 7) Arming: throttle < 5% stable for >= 2000 ms
-            //    Start DISARMED; stay armed once set (until
-            //    failsafe/reboot).
-            // ---------------------------------------------------
+            // Arming
             if (!armed) {
-                // SAFETY: after a failsafe event the lockout blocks
-                // arming until the pilot actively raises the throttle
-                // stick (explicit acknowledgement). Only then does the
-                // normal throttle-low-stable arming path resume.
                 if (rearmLockout) {
                     if (throttle > ARM_THROTTLE_MAX) {
                         rearmLockout    = false;
@@ -352,29 +392,22 @@ void loop() {
                 }
             }
 
-            // ---------------------------------------------------
-            // 8) Stabilized control (only when ARMED).
-            //    Not armed -> neutral surfaces + throttle cut.
-            //
-            //    Flow: RC sticks -> desired attitude -> FlightController
-            //          -> normalized elevon cmds -> existing mixing.
-            // ---------------------------------------------------
+            // -------------------------------------------------------
+            // Stabilized control (ARMED)
+            //   Pipeline (separated stages):
+            //     sensor read   -> imu_fusion::updateSensors (100 Hz)
+            //     sensor fusion -> Kalman roll/pitch + yaw comp-filter
+            //     control       -> FlightController attitudeController+SAS
+            // -------------------------------------------------------
             if (!armed) {
                 applySafeOutputs();
             } else {
-                // RC -> desired attitude (rad) + throttle passthrough
                 theta_d = pitch * MAX_ANGLE;
                 phi_d   = roll  * MAX_ANGLE;
                 tau_d   = throttle;
 
-                // SIMPLIFIED sensor inputs: only attitude angles are fed
-                // from RC-normalized roll/pitch until the real IMU is
-                // integrated. Rates, body velocities, and position = 0.
-                fc.updateSensors(
-                    0.0f, 0.0f, 0.0f,      // PN, PE, h
-                    0.0f, 0.0f, 0.0f,      // u,  v,  w
-                    0.0f, 0.0f, 0.0f,      // p,  q,  r
-                    roll, pitch, 0.0f);    // phi, theta, psi
+                // Feed real sensor estimates into FlightController.
+                feedFlightController();
 
                 attitude_d[0] = theta_d;
                 attitude_d[1] = phi_d;
@@ -383,12 +416,9 @@ void loop() {
                 fc.attitudeController(attitude_d, demands);
                 fc.SAS(demands, controls);
 
-                // controls[0]=elevator (pitch), controls[1]=aileron (roll).
-                // Normalize by saturationAngle, clamp hard to [-1,1].
                 pitchCmd = clampf(controls[0] / SAT_ANGLE, -1.0f, 1.0f);
                 rollCmd  = clampf(controls[1] / SAT_ANGLE, -1.0f, 1.0f);
 
-                // ----- EXISTING elevon mixing (unchanged) -----
                 left  = pitchCmd + rollCmd;
                 right = pitchCmd - rollCmd;
 
@@ -400,7 +430,6 @@ void loop() {
 
                 elevons.setPosition(leftDeg, rightDeg);
 
-                // Throttle output only when ARMED.
                 thrUs = throttleToUs(throttle);
                 pwmDriver.write_us(THROTTLE_OUT_CH, thrUs);
             }
@@ -408,17 +437,47 @@ void loop() {
     }
 
     // -----------------------------------------------------------
-    // 10) Debug output (~10 Hz)
+    // Loop timing / jitter tracking
+    // -----------------------------------------------------------
+    loopExecUs = (uint32_t)(micros() - loopStartUs);
+    if (loopExecUs < loopExecMin) loopExecMin = loopExecUs;
+    if (loopExecUs > loopExecMax) loopExecMax = loopExecUs;
+    loopExecAcc += loopExecUs;
+    loopExecCnt += 1;
+
+    // -----------------------------------------------------------
+    // Debug output (~10 Hz)
     // -----------------------------------------------------------
     if ((uint32_t)(nowMs - lastDbgMs) >= DEBUG_PERIOD_MS) {
         lastDbgMs = nowMs;
 
+        uint32_t avg = (loopExecCnt > 0)
+                        ? (loopExecAcc / loopExecCnt) : 0;
+
         Serial.print(F("armed="));     Serial.print(armed        ? 1 : 0);
-        Serial.print(F(" failsafe="));  Serial.print(failsafe    ? 1 : 0);
-        Serial.print(F(" lockout="));   Serial.print(rearmLockout ? 1 : 0);
-        Serial.print(F(" roll="));      Serial.print(roll,     2);
-        Serial.print(F(" pitch="));     Serial.print(pitch,    2);
-        Serial.print(F(" thr="));       Serial.print(throttle, 2);
-        Serial.println();
+        Serial.print(F(" fs="));        Serial.print(failsafe    ? 1 : 0);
+        Serial.print(F(" lk="));        Serial.print(rearmLockout ? 1 : 0);
+        Serial.print(F(" sOk="));       Serial.print(sensorsOk    ? 1 : 0);
+        Serial.print(F(" phi="));       Serial.print(s_phi,   2);
+        Serial.print(F(" th="));        Serial.print(s_theta, 2);
+        Serial.print(F(" psi="));       Serial.print(s_psi,   2);
+        Serial.print(F(" p="));         Serial.print(s_p,     2);
+        Serial.print(F(" q="));         Serial.print(s_q,     2);
+        Serial.print(F(" r="));         Serial.print(s_r,     2);
+        Serial.print(F(" rc(r,p,t)="));
+        Serial.print(roll, 2);    Serial.print(',');
+        Serial.print(pitch, 2);   Serial.print(',');
+        Serial.print(throttle, 2);
+        Serial.print(F(" loop(us) min/avg/max="));
+        Serial.print(loopExecMin); Serial.print('/');
+        Serial.print(avg);         Serial.print('/');
+        Serial.println(loopExecMax);
+
+        // Reset min/max window each debug cycle so jitter reflects
+        // recent behavior, not boot-time transients.
+        loopExecMin = 0xFFFFFFFFUL;
+        loopExecMax = 0;
+        loopExecAcc = 0;
+        loopExecCnt = 0;
     }
 }
