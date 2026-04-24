@@ -25,8 +25,8 @@ using namespace atabey::utils;
 #define MAG_SCALE_Y    1.126f
 #define MAG_SCALE_Z    0.831f
 
-#define CALIBRATION_SAMPLES 500;
-#define GYRO_STABLE_THRESHOLD 0.1f; // rad/s cinsinden
+#define CALIBRATION_SAMPLES 500
+#define GYRO_STABLE_THRESHOLD 0.1f // rad/s cinsinden
 
 namespace atabey {
     namespace drivers {

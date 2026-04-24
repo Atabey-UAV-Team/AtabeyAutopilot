@@ -18,7 +18,6 @@
 // =============================================================
 
 #include <AtabeyAutopilot.h>
-#include <drivers/sensors/imu_fusion.h>
 #include <math.h>   // fabsf() for disarm-gesture pitch check
 
 // =============================================================
