@@ -12,6 +12,7 @@
 // =============================================================
 
 #include <AtabeyAutopilot.h>
+#include <drivers/sensors/imu_fusion.h>  // phi,theta,psi,p,q,r + initSensors()/updateSensors()
 #include <math.h>   // fabsf() for disarm-gesture pitch check
 
 // =============================================================
@@ -74,6 +75,10 @@ using namespace atabey::control;
 // Loop rate target: ~150 Hz  (1 / 150 Hz ~= 6666 us)
 #define LOOP_PERIOD_US 6666UL
 
+// IMU fusion rate: 100 Hz (matches imu_fusion::dt = 0.01s). Independent
+// of the main loop; do NOT derive from LOOP_PERIOD_US.
+#define IMU_PERIOD_US  10000UL
+
 // Debug output rate: ~10 Hz
 #define DEBUG_PERIOD_MS 100UL
 
@@ -103,7 +108,26 @@ static uint32_t bootMs            = 0;
 static uint32_t lastRxOkUs        = 0;
 static uint32_t throttleLowSince  = 0;   // ms; 0 = not currently low
 static uint32_t lastLoopUs        = 0;
+static uint32_t lastImuUs         = 0;
 static uint32_t lastDbgMs         = 0;
+
+// -------------------------------------------------------------
+// IMU state (fed to FlightController::updateSensors)
+// phi/theta/psi (rad) and p/q/r (rad/s) are produced by imu_fusion
+// at 100 Hz. p_rate/q_rate/r_rate are main-context snapshots of the
+// imu_fusion globals taken immediately after each updateSensors()
+// call, so fc sees a coherent set even if debug preempts between
+// reads. Attitude is read directly from imu_fusion (main-context
+// scheduled; no ISR writer).
+// -------------------------------------------------------------
+static float    p_rate         = 0.0f;
+static float    q_rate         = 0.0f;
+static float    r_rate         = 0.0f;
+
+// SAFETY: true only after at least one successful IMU fusion cycle.
+// Until then, the aircraft is held disarmed and sensors are zeroed.
+static bool     imuReady       = false;
+static bool     imuInitOk      = false;
 
 // SAFETY: manual stick-disarm gesture (throttle low + full-left roll >= 2s)
 static uint32_t disarmStickSince  = 0;   // ms; 0 = gesture not currently held
@@ -205,9 +229,17 @@ void setup() {
     // Immediately enforce safe outputs during startup hold.
     applySafeOutputs();
 
+    // IMU + mag init. Vehicle must be stationary for gyro bias calibration.
+    // Failure does NOT block boot, but imuReady stays false → arming blocked.
+    imuInitOk = initSensors();
+    if (!imuInitOk) {
+        Serial.println(F("IMU init FAILED - aircraft will remain disarmed."));
+    }
+
     bootMs           = millis();
     lastRxOkUs       = micros();
     lastLoopUs       = micros();
+    lastImuUs        = micros();
     lastDbgMs        = millis();
     throttleLowSince = 0;
 
@@ -220,6 +252,37 @@ void setup() {
 // =============================================================
 void loop() {
     nowUs = micros();
+
+    // -----------------------------------------------------------
+    // IMU fusion @ 100 Hz — independent schedule, runs every loop()
+    // pass (BEFORE the 150 Hz gate) so its cadence is not starved
+    // by the control-loop rate limit. No delay(); micros() wrap-safe
+    // via unsigned subtraction.
+    //
+    // imu_fusion runs in main context (cooperative), so the read of
+    // its globals into p_rate/q_rate/r_rate below is race-free with
+    // respect to ISRs — we never observe a half-written value.
+    // -----------------------------------------------------------
+    if (imuInitOk && (uint32_t)(nowUs - lastImuUs) >= IMU_PERIOD_US) {
+        // Catch-up style: advance by fixed period so jitter does not
+        // drift the schedule. If we ever fall >1 period behind, reset
+        // to now to avoid runaway catch-up bursts.
+        if ((uint32_t)(nowUs - lastImuUs) > (IMU_PERIOD_US * 2UL)) {
+            lastImuUs = nowUs;
+        } else {
+            lastImuUs += IMU_PERIOD_US;
+        }
+
+        updateSensors();                // imu_fusion: publishes phi,theta,psi,p,q,r
+
+        // Snapshot angular rates for the control path. Attitude is read
+        // directly from the imu_fusion globals at use-site.
+        p_rate = p;
+        q_rate = q;
+        r_rate = r;
+
+        imuReady = true;                // latched once first sample is in
+    }
 
     // -------- Rate limit to ~150 Hz (no delay()) --------
     if ((uint32_t)(nowUs - lastLoopUs) < LOOP_PERIOD_US) {
@@ -260,7 +323,7 @@ void loop() {
     timedOut =
         ((uint32_t)(nowUs - lastRxOkUs) > FAILSAFE_TIMEOUT_US);
 
-    failsafe = (!rawValid) || timedOut;
+    failsafe = (!rawValid) || timedOut || (!imuReady);
 
     // -----------------------------------------------------------
     // 3) Normalize inputs
@@ -373,8 +436,8 @@ void loop() {
                 fc.updateSensors(
                     0.0f, 0.0f, 0.0f,      // PN, PE, h
                     0.0f, 0.0f, 0.0f,      // u,  v,  w
-                    0.0f, 0.0f, 0.0f,      // p,  q,  r
-                    roll, pitch, 0.0f);    // phi, theta, psi
+                    p_rate, q_rate, r_rate,      // p,  q,  r
+                    phi, theta, psi);    // phi, theta, psi
 
                 attitude_d[0] = theta_d;
                 attitude_d[1] = phi_d;
@@ -419,6 +482,15 @@ void loop() {
         Serial.print(F(" roll="));      Serial.print(roll,     2);
         Serial.print(F(" pitch="));     Serial.print(pitch,    2);
         Serial.print(F(" thr="));       Serial.print(throttle, 2);
+
+        Serial.print(F(" phi=")); Serial.print(phi, 2);
+        Serial.print(F(" theta=")); Serial.print(theta, 2);
+        Serial.print(F(" psi=")); Serial.print(psi, 2);
+
+        Serial.print(F(" p=")); Serial.print(p_rate, 2);
+        Serial.print(F(" q=")); Serial.print(q_rate, 2);
+        Serial.print(F(" r=")); Serial.print(r_rate, 2);
+
         Serial.println();
     }
 }

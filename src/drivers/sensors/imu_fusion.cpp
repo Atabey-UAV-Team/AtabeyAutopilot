@@ -59,7 +59,13 @@ namespace {
 bool initSensors() {
     bool ok = true;
     ok &= imu.init();
+    if (!ok) {
+        Serial.println(F("MPU6250 init FAILED"));
+    }
     ok &= mag.init();
+    if (!ok) {
+        Serial.println(F("BMM150 init FAILED"));
+    }
 
     if (ok) {
         // Vehicle must be stationary at power-up for valid bias.
