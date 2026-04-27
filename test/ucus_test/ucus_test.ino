@@ -18,6 +18,7 @@
 // =============================================================
 
 #include <AtabeyAutopilot.h>
+#include <drivers/sensors/imu_fusion.h>  // phi,theta,psi,p,q,r + initSensors()/updateSensors()
 #include <math.h>   // fabsf() for disarm-gesture pitch check
 
 // =============================================================
@@ -253,6 +254,13 @@ void setup() {
 
     applySafeOutputs();
 
+    // IMU + mag init. Vehicle must be stationary for gyro bias calibration.
+    // Failure does NOT block boot, but imuReady stays false → arming blocked.
+    imuInitOk = initSensors();
+    if (!imuInitOk) {
+        Serial.println(F("IMU init FAILED - aircraft will remain disarmed."));
+    }
+
     bootMs           = millis();
     lastRxOkUs       = micros();
     lastLoopUs       = micros();
@@ -321,7 +329,7 @@ void loop() {
     timedOut =
         ((uint32_t)(nowUs - lastRxOkUs) > FAILSAFE_TIMEOUT_US);
 
-    failsafe = (!rawValid) || timedOut;
+    failsafe = (!rawValid) || timedOut || (!imuReady);
 
     // -----------------------------------------------------------
     // 3) Normalize inputs
